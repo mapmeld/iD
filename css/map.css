@@ -1484,6 +1484,21 @@ g.turn circle {
     pointer-events: visibleStroke;
 }
 
+/* Esri layer */
+.layer-esri {
+    pointer-events: none;
+}
+
+path.esri {
+    stroke: #FF26D4;
+    stroke-width: 2;
+    fill: none;
+}
+
+text.esri {
+    fill: #FF26D4;
+}
+
 /* GPX Paths */
 .layer-gpx {
     pointer-events: none;
