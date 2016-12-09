@@ -174,6 +174,9 @@ export function uiEntityEditor(context) {
     function clean(o) {
 
         function cleanVal(k, v) {
+            // a number value from service should be converted to a string
+            v = v + '';
+
             function keepSpaces(k) {
                 var whitelist = ['opening_hours', 'service_times', 'collection_times',
                     'operating_times', 'smoking_hours', 'happy_hours'];
