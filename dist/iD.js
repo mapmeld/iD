@@ -46975,14 +46975,14 @@ function svgEsri(projection, context, dispatch$$1) {
         var geojson = svgEsri.geojson,
             enabled = svgEsri.enabled;
 
-        (geojson.features || []).map(function(d) {
+        lodash.map(geojson.features || [], function(d) {
             // don't reload the same objects over again
             if (window.knownObjectIds[d.properties.OBJECTID]) {
                 return;
             }
             window.knownObjectIds[d.properties.OBJECTID] = true;
         
-            var props, nodes, ln, way;
+            var props, nodes, ln, way, rel;
             function makeEntity(loc_or_nodes) {
                 props = {
                     tags: d.properties,
@@ -47017,6 +47017,65 @@ function svgEsri(projection, context, dispatch$$1) {
                 return nodes;
             }
             
+            function mapLine(d, coords) {
+                nodes = makeMiniNodes(coords);
+                props = makeEntity(nodes);
+                way = new osmWay(props, nodes);
+                context.perform(
+                    actionAddEntity(way),
+                    'adding way'
+                );
+                return way;
+            }
+            
+            function mapPolygon(d, coords) {
+                d.properties.area = d.properties.area || 'yes';
+                if (coords.length > 1) {
+                    // donut hole polygons (e.g. building with courtyard) must be a relation
+                    // example data: Hartford, CT building footprints
+                    // TODO: rings within rings
+
+                    // generate each ring                    
+                    var componentRings = [];
+                    for (var ring = 0; ring < coords.length; ring++) {
+                        nodes = makeMiniNodes(coords[ring]);
+                        props = makeEntity(nodes);
+                        // props.tags = {};
+                        way = new osmWay(props);
+                        context.perform(
+                            actionAddEntity(way),
+                            'ring of a Polygon/MultiPolygon relation'
+                        );
+                        componentRings.push({
+                            id: way.id,
+                            role: (ring === 0 ? 'outer' : 'inner')
+                        });
+                    }
+                    
+                    // generate a relation
+                    rel = new osmRelation({
+                        tags: {
+                            type: 'MultiPolygon'
+                        },
+                        members: componentRings
+                    });
+                    context.perform(
+                        actionAddEntity(rel),
+                        'adding multiple-ring Polygon'
+                    );
+                    return rel;
+                } else {
+                    nodes = makeMiniNodes(coords[0]);
+                    props = makeEntity(nodes);
+                    way = new osmWay(props);
+                    context.perform(
+                        actionAddEntity(way),
+                        'adding single-ring Polygon'
+                    );
+                    return way;
+                }
+            }
+            
             // importing different GeoJSON geometries
             if (d.geometry.type === 'Point') {
                 props = makeEntity(d.geometry.coordinates);
@@ -47027,49 +47086,56 @@ function svgEsri(projection, context, dispatch$$1) {
                 );
                   
             } else if (d.geometry.type === 'LineString') {
-                nodes = makeMiniNodes(d.geometry.coordinates);
-                props = makeEntity(nodes);
-                way = new osmWay(props, nodes);
-                context.perform(
-                    actionAddEntity(way),
-                    'adding way'
-                );
+                mapLine(d, d.geometry.coordinates);
                     
             } else if (d.geometry.type === 'MultiLineString') {
-                // TODO: represent as a relation and not as multiple disconnected ways
+                var lines = [];
                 for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
-                    nodes = makeMiniNodes(d.geometry.coordinates[ln]);
-                    props = makeEntity(nodes);
-                    way = new osmWay(props);
-                    context.perform(
-                        actionAddEntity(way),
-                        'adding way within MultiLineString'
-                    );
+                    lines.push({
+                        id: mapLine(d, d.geometry.coordinates[ln]).id,
+                        role: '' // todo roles: this empty string assumes the lines make up a route
+                    });
                 }
+                
+                // generate a relation
+                rel = new osmRelation({
+                    tags: {
+                        type: 'route' // todo multilinestring and multipolygon types
+                    },
+                    members: lines
+                });
+                context.perform(
+                    actionAddEntity(rel),
+                    'adding multiple Lines as a Relation'
+                );
+                
                     
             } else if (d.geometry.type === 'Polygon') {
-                // TODO: allow donut hole polygons using relations and GeoJSON rings
-                d.properties.area = d.properties.area || 'yes';
-                nodes = makeMiniNodes(d.geometry.coordinates[0]);
-                props = makeEntity(nodes);
-                way = new osmWay(props);
-                context.perform(
-                    actionAddEntity(way),
-                    'adding way within Polygon'
-                );
-                    
+                mapPolygon(d, d.geometry.coordinates);
+
             } else if (d.geometry.type === 'MultiPolygon') {
-                // TODO: allow donut hole polygons using relations and GeoJSON rings
-                // TODO: represent as a relation and not as multiple disconnected Polygons
-                d.properties.area = d.properties.area || 'yes';
+                var polygons = [];
                 for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
-                    nodes = makeMiniNodes(d.geometry.coordinates[ln][0]);
-                    props = makeEntity(nodes);
-                    context.perform(
-                        actionAddEntity(way),
-                        'adding way within MultiPolygon'
-                    );
+                    polygons.push({
+                        id: mapPolygon(d, d.geometry.coordinates[ln]).id,
+                        role: ''
+                    });
                 }
+                
+                // generate a relation
+                rel = new osmRelation({
+                    tags: {
+                        type: 'MultiPolygon'
+                    },
+                    members: polygons
+                });
+                context.perform(
+                    actionAddEntity(rel),
+                    'adding multiple Polygons as a Relation'
+                );
+
+            } else {
+                console.log('Did not recognize Geometry Type: ' + d.geometry.type);
             }
         });
         
@@ -47127,7 +47193,7 @@ function svgEsri(projection, context, dispatch$$1) {
         }
         if (url.indexOf('&f=') === -1) {
             url += '&f=json';
-        }        
+        }
         
         // turn iD Editor bounds into a query
         var bounds = context.map().trimmedExtent().bbox();
@@ -47162,8 +47228,14 @@ function svgEsri(projection, context, dispatch$$1) {
                 console.log('Esri service URL did not load');
                 console.error(err);
             } else {
-                // convert EsriJSON to GeoJSON here
-                var jsondl = index$11.fromEsri(JSON.parse(data));
+                // convert EsriJSON text to GeoJSON object
+                data = JSON.parse(data);
+                var jsondl = index$11.fromEsri(data);
+                
+                // warn if went over server's maximum results count
+                if (data.exceededTransferLimit) {
+                    window.alert('Service returned first ' + data.features.length + ' results (maximum)');
+                }
 
                 selectAll('.esri-pane h3').text('Set import attributes');
                 var esriTable = selectAll('.esri-table');
@@ -47186,7 +47258,7 @@ function svgEsri(projection, context, dispatch$$1) {
                     }
                 } else {
                     // if any import properties were added, make these mods and reject all other properties
-                    function processGeoFeature(selectfeature) {
+                    var processGeoFeature = function (selectfeature) {
                         // keep the OBJECTID to make sure we don't download the same data multiple times
                         var outprops = {
                             OBJECTID: selectfeature.properties.OBJECTID
@@ -47205,7 +47277,7 @@ function svgEsri(projection, context, dispatch$$1) {
                         }
                         selectfeature.properties = outprops;
                         return selectfeature;
-                    }
+                    };
                     for (var ft = 0; ft < jsondl.features.length; ft++) {
                         jsondl.features[ft] = processGeoFeature(jsondl.features[ft]);
                     }
