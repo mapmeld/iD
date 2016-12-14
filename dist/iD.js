@@ -19014,6 +19014,9 @@ osmEntity$$1.key = function(entity) {
 osmEntity$$1.prototype = {
 
     tags: {},
+    
+    // use this to track user one-by-one approval for addition to the edits
+    approvedForEdit: true,
 
 
     initialize: function(sources) {
@@ -36000,7 +36003,7 @@ osmNode.prototype = Object.create(osmEntity$$1.prototype);
 lodash.extend(osmNode.prototype, {
 
     type: 'node',
-
+    approvedForEdit: true,
 
     extent: function() {
         return new geoExtent$$1(this.loc);
@@ -36376,7 +36379,7 @@ osmRelation.creationOrder = function(a, b) {
 lodash.extend(osmRelation.prototype, {
     type: 'relation',
     members: [],
-
+    approvedForEdit: true,
 
     copy: function(resolver, copies) {
         if (copies[this.id])
@@ -42350,344 +42353,6 @@ var JXON = new (function () {
 // var newDoc = JXON.unbuild(myObject);
 // we got our Document instance! try: alert((new XMLSerializer()).serializeToString(newDoc));
 
-function modeSave$$1(context) {
-    var mode = {
-        id: 'save'
-    };
-
-    var ui = uiCommit(context)
-            .on('cancel', cancel)
-            .on('save', save);
-
-
-    function cancel() {
-        context.enter(modeBrowse$$1(context));
-    }
-
-
-    function save(e, tryAgain) {
-        function withChildNodes(ids, graph) {
-            return lodash.uniq(lodash.reduce(ids, function(result, id) {
-                var e = graph.entity(id);
-                if (e.type === 'way') {
-                    try {
-                        var cn = graph.childNodes(e);
-                        result.push.apply(result, lodash.map(lodash.filter(cn, 'version'), 'id'));
-                    } catch (err) {
-                        /* eslint-disable no-console */
-                        if (typeof console !== 'undefined') console.error(err);
-                        /* eslint-enable no-console */
-                    }
-                }
-                return result;
-            }, lodash.clone(ids)));
-        }
-
-        var loading = uiLoading(context).message(t('save.uploading')).blocking(true),
-            history = context.history(),
-            origChanges = history.changes(actionDiscardTags(history.difference())),
-            localGraph = context.graph(),
-            remoteGraph = coreGraph$$1(history.base(), true),
-            modified = lodash.filter(history.difference().summary(), {changeType: 'modified'}),
-            toCheck = lodash.map(lodash.map(modified, 'entity'), 'id'),
-            toLoad = withChildNodes(toCheck, localGraph),
-            conflicts = [],
-            errors = [];
-
-        if (!tryAgain) history.perform(actionNoop());  // checkpoint
-        context.container().call(loading);
-
-        if (toCheck.length) {
-            context.connection().loadMultiple(toLoad, loaded);
-        } else {
-            finalize();
-        }
-
-
-        // Reload modified entities into an alternate graph and check for conflicts..
-        function loaded(err, result) {
-            if (errors.length) return;
-
-            if (err) {
-                errors.push({
-                    msg: err.responseText,
-                    details: [ t('save.status_code', { code: err.status }) ]
-                });
-                showErrors();
-
-            } else {
-                var loadMore = [];
-                lodash.each(result.data, function(entity) {
-                    remoteGraph.replace(entity);
-                    toLoad = lodash.without(toLoad, entity.id);
-
-                    // Because loadMultiple doesn't download /full like loadEntity,
-                    // need to also load children that aren't already being checked..
-                    if (!entity.visible) return;
-                    if (entity.type === 'way') {
-                        loadMore.push.apply(loadMore,
-                            lodash.difference(entity.nodes, toCheck, toLoad, loadMore));
-                    } else if (entity.type === 'relation' && entity.isMultipolygon()) {
-                        loadMore.push.apply(loadMore,
-                            lodash.difference(lodash.map(entity.members, 'id'), toCheck, toLoad, loadMore));
-                    }
-                });
-
-                if (loadMore.length) {
-                    toLoad.push.apply(toLoad, loadMore);
-                    context.connection().loadMultiple(loadMore, loaded);
-                }
-
-                if (!toLoad.length) {
-                    checkConflicts();
-                }
-            }
-        }
-
-
-        function checkConflicts() {
-            function choice(id, text$$1, action) {
-                return { id: id, text: text$$1, action: function() { history.replace(action); } };
-            }
-            function formatUser(d) {
-                return '<a href="' + context.connection().userURL(d) + '" target="_blank">' + d + '</a>';
-            }
-            function entityName(entity) {
-                return utilDisplayName(entity) || (utilDisplayType(entity.id) + ' ' + entity.id);
-            }
-
-            function compareVersions(local$$1, remote) {
-                if (local$$1.version !== remote.version) return false;
-
-                if (local$$1.type === 'way') {
-                    var children = lodash.union(local$$1.nodes, remote.nodes);
-
-                    for (var i = 0; i < children.length; i++) {
-                        var a = localGraph.hasEntity(children[i]),
-                            b = remoteGraph.hasEntity(children[i]);
-
-                        if (a && b && a.version !== b.version) return false;
-                    }
-                }
-
-                return true;
-            }
-
-            lodash.each(toCheck, function(id) {
-                var local$$1 = localGraph.entity(id),
-                    remote = remoteGraph.entity(id);
-
-                if (compareVersions(local$$1, remote)) return;
-
-                var action = actionMergeRemoteChanges,
-                    merge$$1 = action(id, localGraph, remoteGraph, formatUser);
-
-                history.replace(merge$$1);
-
-                var mergeConflicts = merge$$1.conflicts();
-                if (!mergeConflicts.length) return;  // merged safely
-
-                var forceLocal = action(id, localGraph, remoteGraph).withOption('force_local'),
-                    forceRemote = action(id, localGraph, remoteGraph).withOption('force_remote'),
-                    keepMine = t('save.conflict.' + (remote.visible ? 'keep_local' : 'restore')),
-                    keepTheirs = t('save.conflict.' + (remote.visible ? 'keep_remote' : 'delete'));
-
-                conflicts.push({
-                    id: id,
-                    name: entityName(local$$1),
-                    details: mergeConflicts,
-                    chosen: 1,
-                    choices: [
-                        choice(id, keepMine, forceLocal),
-                        choice(id, keepTheirs, forceRemote)
-                    ]
-                });
-            });
-
-            finalize();
-        }
-
-
-        function finalize() {
-            if (conflicts.length) {
-                conflicts.sort(function(a,b) { return b.id.localeCompare(a.id); });
-                showConflicts();
-            } else if (errors.length) {
-                showErrors();
-            } else {
-                var changes = history.changes(actionDiscardTags(history.difference()));
-                if (changes.modified.length || changes.created.length || changes.deleted.length) {
-                    context.connection().putChangeset(
-                        changes,
-                        context.version,
-                        e.comment,
-                        history.imageryUsed(),
-                        function(err, changeset_id) {
-                            if (err) {
-                                errors.push({
-                                    msg: err.responseText,
-                                    details: [ t('save.status_code', { code: err.status }) ]
-                                });
-                                showErrors();
-                            } else {
-                                history.clearSaved();
-                                success(e, changeset_id);
-                                // Add delay to allow for postgres replication #1646 #2678
-                                window.setTimeout(function() {
-                                    loading.close();
-                                    context.flush();
-                                }, 2500);
-                            }
-                        });
-                } else {        // changes were insignificant or reverted by user
-                    loading.close();
-                    context.flush();
-                    cancel();
-                }
-            }
-        }
-
-
-        function showConflicts() {
-            var selection$$1 = context.container()
-                .select('#sidebar')
-                .append('div')
-                .attr('class','sidebar-component');
-
-            loading.close();
-
-            selection$$1.call(uiConflicts(context)
-                .list(conflicts)
-                .on('download', function() {
-                    var data = JXON.stringify(context.connection().osmChangeJXON('CHANGEME', origChanges)),
-                        win = window.open('data:text/xml,' + encodeURIComponent(data), '_blank');
-                    win.focus();
-                })
-                .on('cancel', function() {
-                    history.pop();
-                    selection$$1.remove();
-                })
-                .on('save', function() {
-                    for (var i = 0; i < conflicts.length; i++) {
-                        if (conflicts[i].chosen === 1) {  // user chose "keep theirs"
-                            var entity = context.hasEntity(conflicts[i].id);
-                            if (entity && entity.type === 'way') {
-                                var children = lodash.uniq(entity.nodes);
-                                for (var j = 0; j < children.length; j++) {
-                                    history.replace(actionRevert(children[j]));
-                                }
-                            }
-                            history.replace(actionRevert(conflicts[i].id));
-                        }
-                    }
-
-                    selection$$1.remove();
-                    save(e, true);
-                })
-            );
-        }
-
-
-        function showErrors() {
-            var selection$$1 = uiConfirm(context.container());
-
-            history.pop();
-            loading.close();
-
-            selection$$1
-                .select('.modal-section.header')
-                .append('h3')
-                .text(t('save.error'));
-
-            addErrors(selection$$1, errors);
-            selection$$1.okButton();
-        }
-
-
-        function addErrors(selection$$1, data) {
-            var message = selection$$1
-                .select('.modal-section.message-text');
-
-            var items = message
-                .selectAll('.error-container')
-                .data(data);
-
-            var enter = items.enter()
-                .append('div')
-                .attr('class', 'error-container');
-
-            enter
-                .append('a')
-                .attr('class', 'error-description')
-                .attr('href', '#')
-                .classed('hide-toggle', true)
-                .text(function(d) { return d.msg || t('save.unknown_error_details'); })
-                .on('click', function() {
-                    var error = select(this),
-                        detail = select(this.nextElementSibling),
-                        exp = error.classed('expanded');
-
-                    detail.style('display', exp ? 'none' : 'block');
-                    error.classed('expanded', !exp);
-
-                    event.preventDefault();
-                });
-
-            var details = enter
-                .append('div')
-                .attr('class', 'error-detail-container')
-                .style('display', 'none');
-
-            details
-                .append('ul')
-                .attr('class', 'error-detail-list')
-                .selectAll('li')
-                .data(function(d) { return d.details || []; })
-                .enter()
-                .append('li')
-                .attr('class', 'error-detail-item')
-                .text(function(d) { return d; });
-
-            items.exit()
-                .remove();
-        }
-
-    }
-
-
-    function success(e, changeset_id) {
-        context.enter(modeBrowse$$1(context)
-            .sidebar(uiSuccess(context)
-                .changeset({
-                    id: changeset_id,
-                    comment: e.comment
-                })
-                .on('cancel', function() {
-                    context.ui().sidebar.hide();
-                })
-            )
-        );
-    }
-
-
-    mode.enter = function() {
-        context.connection().authenticate(function(err) {
-            if (err) {
-                cancel();
-            } else {
-                context.ui().sidebar.show(ui);
-            }
-        });
-    };
-
-
-    mode.exit = function() {
-        context.ui().sidebar.hide();
-    };
-
-    return mode;
-}
-
 function operationCircularize(selectedIDs, context) {
     var entityId = selectedIDs[0],
         entity = context.entity(entityId),
@@ -43283,6 +42948,353 @@ var Operations = Object.freeze({
 	operationSplit: operationSplit,
 	operationStraighten: operationStraighten
 });
+
+function modeSave$$1(context) {
+    var mode = {
+        id: 'save'
+    };
+    
+    // when clicking the save button, filter out entities which were not approved manually
+    var deletions = [];
+    lodash.map(window.importedEntities, function(entity) {
+        if (!entity.approvedForEdit) {
+            deletions.push(entity.id); 
+        }
+    });
+    operationDelete(deletions, context)();
+
+    var ui = uiCommit(context)
+            .on('cancel', cancel)
+            .on('save', save);
+
+
+    function cancel() {
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    function save(e, tryAgain) {
+        function withChildNodes(ids, graph) {
+            return lodash.uniq(lodash.reduce(ids, function(result, id) {
+                var e = graph.entity(id);
+                if (e.type === 'way') {
+                    try {
+                        var cn = graph.childNodes(e);
+                        result.push.apply(result, lodash.map(lodash.filter(cn, 'version'), 'id'));
+                    } catch (err) {
+                        /* eslint-disable no-console */
+                        if (typeof console !== 'undefined') console.error(err);
+                        /* eslint-enable no-console */
+                    }
+                }
+                return result;
+            }, lodash.clone(ids)));
+        }
+
+        var loading = uiLoading(context).message(t('save.uploading')).blocking(true),
+            history = context.history(),
+            origChanges = history.changes(actionDiscardTags(history.difference())),
+            localGraph = context.graph(),
+            remoteGraph = coreGraph$$1(history.base(), true),
+            modified = lodash.filter(history.difference().summary(), {changeType: 'modified'}),
+            toCheck = lodash.map(lodash.map(modified, 'entity'), 'id'),
+            toLoad = withChildNodes(toCheck, localGraph),
+            conflicts = [],
+            errors = [];
+
+        if (!tryAgain) history.perform(actionNoop());  // checkpoint
+        context.container().call(loading);
+
+        if (toCheck.length) {
+            context.connection().loadMultiple(toLoad, loaded);
+        } else {
+            finalize();
+        }
+
+
+        // Reload modified entities into an alternate graph and check for conflicts..
+        function loaded(err, result) {
+            if (errors.length) return;
+
+            if (err) {
+                errors.push({
+                    msg: err.responseText,
+                    details: [ t('save.status_code', { code: err.status }) ]
+                });
+                showErrors();
+
+            } else {
+                var loadMore = [];
+                lodash.each(result.data, function(entity) {
+                    remoteGraph.replace(entity);
+                    toLoad = lodash.without(toLoad, entity.id);
+
+                    // Because loadMultiple doesn't download /full like loadEntity,
+                    // need to also load children that aren't already being checked..
+                    if (!entity.visible) return;
+                    if (entity.type === 'way') {
+                        loadMore.push.apply(loadMore,
+                            lodash.difference(entity.nodes, toCheck, toLoad, loadMore));
+                    } else if (entity.type === 'relation' && entity.isMultipolygon()) {
+                        loadMore.push.apply(loadMore,
+                            lodash.difference(lodash.map(entity.members, 'id'), toCheck, toLoad, loadMore));
+                    }
+                });
+
+                if (loadMore.length) {
+                    toLoad.push.apply(toLoad, loadMore);
+                    context.connection().loadMultiple(loadMore, loaded);
+                }
+
+                if (!toLoad.length) {
+                    checkConflicts();
+                }
+            }
+        }
+
+
+        function checkConflicts() {
+            function choice(id, text$$1, action) {
+                return { id: id, text: text$$1, action: function() { history.replace(action); } };
+            }
+            function formatUser(d) {
+                return '<a href="' + context.connection().userURL(d) + '" target="_blank">' + d + '</a>';
+            }
+            function entityName(entity) {
+                return utilDisplayName(entity) || (utilDisplayType(entity.id) + ' ' + entity.id);
+            }
+
+            function compareVersions(local$$1, remote) {
+                if (local$$1.version !== remote.version) return false;
+
+                if (local$$1.type === 'way') {
+                    var children = lodash.union(local$$1.nodes, remote.nodes);
+
+                    for (var i = 0; i < children.length; i++) {
+                        var a = localGraph.hasEntity(children[i]),
+                            b = remoteGraph.hasEntity(children[i]);
+
+                        if (a && b && a.version !== b.version) return false;
+                    }
+                }
+
+                return true;
+            }
+
+            lodash.each(toCheck, function(id) {
+                var local$$1 = localGraph.entity(id),
+                    remote = remoteGraph.entity(id);
+
+                if (compareVersions(local$$1, remote)) return;
+
+                var action = actionMergeRemoteChanges,
+                    merge$$1 = action(id, localGraph, remoteGraph, formatUser);
+
+                history.replace(merge$$1);
+
+                var mergeConflicts = merge$$1.conflicts();
+                if (!mergeConflicts.length) return;  // merged safely
+
+                var forceLocal = action(id, localGraph, remoteGraph).withOption('force_local'),
+                    forceRemote = action(id, localGraph, remoteGraph).withOption('force_remote'),
+                    keepMine = t('save.conflict.' + (remote.visible ? 'keep_local' : 'restore')),
+                    keepTheirs = t('save.conflict.' + (remote.visible ? 'keep_remote' : 'delete'));
+
+                conflicts.push({
+                    id: id,
+                    name: entityName(local$$1),
+                    details: mergeConflicts,
+                    chosen: 1,
+                    choices: [
+                        choice(id, keepMine, forceLocal),
+                        choice(id, keepTheirs, forceRemote)
+                    ]
+                });
+            });
+
+            finalize();
+        }
+
+
+        function finalize() {
+            if (conflicts.length) {
+                conflicts.sort(function(a,b) { return b.id.localeCompare(a.id); });
+                showConflicts();
+            } else if (errors.length) {
+                showErrors();
+            } else {
+                var changes = history.changes(actionDiscardTags(history.difference()));
+                if (changes.modified.length || changes.created.length || changes.deleted.length) {
+                    context.connection().putChangeset(
+                        changes,
+                        context.version,
+                        e.comment,
+                        history.imageryUsed(),
+                        function(err, changeset_id) {
+                            if (err) {
+                                errors.push({
+                                    msg: err.responseText,
+                                    details: [ t('save.status_code', { code: err.status }) ]
+                                });
+                                showErrors();
+                            } else {
+                                history.clearSaved();
+                                success(e, changeset_id);
+                                // Add delay to allow for postgres replication #1646 #2678
+                                window.setTimeout(function() {
+                                    loading.close();
+                                    context.flush();
+                                }, 2500);
+                            }
+                        });
+                } else {        // changes were insignificant or reverted by user
+                    loading.close();
+                    context.flush();
+                    cancel();
+                }
+            }
+        }
+
+
+        function showConflicts() {
+            var selection$$1 = context.container()
+                .select('#sidebar')
+                .append('div')
+                .attr('class','sidebar-component');
+
+            loading.close();
+
+            selection$$1.call(uiConflicts(context)
+                .list(conflicts)
+                .on('download', function() {
+                    var data = JXON.stringify(context.connection().osmChangeJXON('CHANGEME', origChanges)),
+                        win = window.open('data:text/xml,' + encodeURIComponent(data), '_blank');
+                    win.focus();
+                })
+                .on('cancel', function() {
+                    history.pop();
+                    selection$$1.remove();
+                })
+                .on('save', function() {
+                    for (var i = 0; i < conflicts.length; i++) {
+                        if (conflicts[i].chosen === 1) {  // user chose "keep theirs"
+                            var entity = context.hasEntity(conflicts[i].id);
+                            if (entity && entity.type === 'way') {
+                                var children = lodash.uniq(entity.nodes);
+                                for (var j = 0; j < children.length; j++) {
+                                    history.replace(actionRevert(children[j]));
+                                }
+                            }
+                            history.replace(actionRevert(conflicts[i].id));
+                        }
+                    }
+
+                    selection$$1.remove();
+                    save(e, true);
+                })
+            );
+        }
+
+
+        function showErrors() {
+            var selection$$1 = uiConfirm(context.container());
+
+            history.pop();
+            loading.close();
+
+            selection$$1
+                .select('.modal-section.header')
+                .append('h3')
+                .text(t('save.error'));
+
+            addErrors(selection$$1, errors);
+            selection$$1.okButton();
+        }
+
+
+        function addErrors(selection$$1, data) {
+            var message = selection$$1
+                .select('.modal-section.message-text');
+
+            var items = message
+                .selectAll('.error-container')
+                .data(data);
+
+            var enter = items.enter()
+                .append('div')
+                .attr('class', 'error-container');
+
+            enter
+                .append('a')
+                .attr('class', 'error-description')
+                .attr('href', '#')
+                .classed('hide-toggle', true)
+                .text(function(d) { return d.msg || t('save.unknown_error_details'); })
+                .on('click', function() {
+                    var error = select(this),
+                        detail = select(this.nextElementSibling),
+                        exp = error.classed('expanded');
+
+                    detail.style('display', exp ? 'none' : 'block');
+                    error.classed('expanded', !exp);
+
+                    event.preventDefault();
+                });
+
+            var details = enter
+                .append('div')
+                .attr('class', 'error-detail-container')
+                .style('display', 'none');
+
+            details
+                .append('ul')
+                .attr('class', 'error-detail-list')
+                .selectAll('li')
+                .data(function(d) { return d.details || []; })
+                .enter()
+                .append('li')
+                .attr('class', 'error-detail-item')
+                .text(function(d) { return d; });
+
+            items.exit()
+                .remove();
+        }
+
+    }
+
+
+    function success(e, changeset_id) {
+        context.enter(modeBrowse$$1(context)
+            .sidebar(uiSuccess(context)
+                .changeset({
+                    id: changeset_id,
+                    comment: e.comment
+                })
+                .on('cancel', function() {
+                    context.ui().sidebar.hide();
+                })
+            )
+        );
+    }
+
+
+    mode.enter = function() {
+        context.connection().authenticate(function(err) {
+            if (err) {
+                cancel();
+            } else {
+                context.ui().sidebar.show(ui);
+            }
+        });
+    };
+
+
+    mode.exit = function() {
+        context.ui().sidebar.hide();
+    };
+
+    return mode;
+}
 
 // Translate a MacOS key command into the appropriate Windows/Linux equivalent.
 // For example, ⌘Z -> Ctrl+Z
@@ -46937,6 +46949,9 @@ window.layerImports = {};
 // prevent re-downloading and re-adding the same feature
 window.knownObjectIds = {};
 
+// keeping track of added OSM entities
+window.importedEntities = [];
+
 function svgEsri(projection, context, dispatch$$1) {
     var showLabels = true,
         detected = utilDetect(),
@@ -47008,6 +47023,7 @@ function svgEsri(projection, context, dispatch$$1) {
                     props = makeEntity(pts[p]);
                     props.tags = {};
                     var node = new osmNode(props);
+                    node.approvedForEdit = false;
                     context.perform(
                         actionAddEntity(node),
                         'adding node inside a way'
@@ -47021,6 +47037,7 @@ function svgEsri(projection, context, dispatch$$1) {
                 nodes = makeMiniNodes(coords);
                 props = makeEntity(nodes);
                 way = new osmWay(props, nodes);
+                way.approvedForEdit = false;
                 context.perform(
                     actionAddEntity(way),
                     'adding way'
@@ -47038,14 +47055,8 @@ function svgEsri(projection, context, dispatch$$1) {
                     // generate each ring                    
                     var componentRings = [];
                     for (var ring = 0; ring < coords.length; ring++) {
-                        nodes = makeMiniNodes(coords[ring]);
-                        props = makeEntity(nodes);
                         // props.tags = {};
-                        way = new osmWay(props);
-                        context.perform(
-                            actionAddEntity(way),
-                            'ring of a Polygon/MultiPolygon relation'
-                        );
+                        way = mapLine(d, coords[ring]);
                         componentRings.push({
                             id: way.id,
                             role: (ring === 0 ? 'outer' : 'inner')
@@ -47059,19 +47070,15 @@ function svgEsri(projection, context, dispatch$$1) {
                         },
                         members: componentRings
                     });
+                    rel.approvedForEdit = false;
                     context.perform(
                         actionAddEntity(rel),
                         'adding multiple-ring Polygon'
                     );
                     return rel;
                 } else {
-                    nodes = makeMiniNodes(coords[0]);
-                    props = makeEntity(nodes);
-                    way = new osmWay(props);
-                    context.perform(
-                        actionAddEntity(way),
-                        'adding single-ring Polygon'
-                    );
+                    // polygon with one single ring
+                    way = mapLine(d, coords[0]);
                     return way;
                 }
             }
@@ -47080,13 +47087,15 @@ function svgEsri(projection, context, dispatch$$1) {
             if (d.geometry.type === 'Point') {
                 props = makeEntity(d.geometry.coordinates);
                 var node = new osmNode(props);
+                node.approvedForEdit = false;
                 context.perform(
                     actionAddEntity(node),
                     'adding point'
                 );
+                window.importedEntities.push(node);
                   
             } else if (d.geometry.type === 'LineString') {
-                mapLine(d, d.geometry.coordinates);
+                window.importedEntities.push(mapLine(d, d.geometry.coordinates));
                     
             } else if (d.geometry.type === 'MultiLineString') {
                 var lines = [];
@@ -47104,14 +47113,16 @@ function svgEsri(projection, context, dispatch$$1) {
                     },
                     members: lines
                 });
+                rel.approvedForEdit = false;
                 context.perform(
                     actionAddEntity(rel),
                     'adding multiple Lines as a Relation'
                 );
+                window.importedEntities.push(rel);
                 
                     
             } else if (d.geometry.type === 'Polygon') {
-                mapPolygon(d, d.geometry.coordinates);
+                window.importedEntities.push(mapPolygon(d, d.geometry.coordinates));
 
             } else if (d.geometry.type === 'MultiPolygon') {
                 var polygons = [];
@@ -47129,10 +47140,12 @@ function svgEsri(projection, context, dispatch$$1) {
                     },
                     members: polygons
                 });
+                rel.approvedForEdit = false;
                 context.perform(
                     actionAddEntity(rel),
                     'adding multiple Polygons as a Relation'
                 );
+                window.importedEntities.push(rel);
 
             } else {
                 console.log('Did not recognize Geometry Type: ' + d.geometry.type);
@@ -47148,6 +47161,12 @@ function svgEsri(projection, context, dispatch$$1) {
         if (r >= keys$$1.length) {
             return;
         }
+        
+        // don't allow user to change how OBJECTID works
+        if (keys$$1[r] === 'OBJECTID') {
+            return doKey(r + 1, keys$$1, samplefeature, esriTable);
+        }
+        
         var row = esriTable.append('tr');
           //.attr('class', 'tag-row');
         row.append('td').text(keys$$1[r]); // .attr('class', 'key-wrap');
@@ -47287,7 +47306,8 @@ function svgEsri(projection, context, dispatch$$1) {
                 drawEsri.geojson(jsondl);
             }
         });
-        
+
+/*        
         // whenever map is moved, start 0.7s timer to re-download data from ArcGIS service
         // unless we are downloading everything we can anyway
         if (!downloadMax) {
@@ -47300,7 +47320,7 @@ function svgEsri(projection, context, dispatch$$1) {
                 }.bind(this), 700);
             }.bind(this));
         }
-        
+*/        
         return this;
     };
 
@@ -59511,6 +59531,7 @@ function uiMapData(context) {
                 .on('click', function() {
                     context.flush();
                     window.knownObjectIds = {};
+                    window.importedEntities = [];
                     setTimeout(function() {
                       refreshEsriLayer(context.storage('esriLayerUrl'), esriDownloadAll);
                     }, 400);
@@ -64495,6 +64516,28 @@ function uiEntityEditor(context) {
         enter = body.enter()
             .append('div')
             .attr('class', 'inspector-body');
+        
+        // import one-by-one approval
+        // TODO: add icons, better button UI
+        var importApprove = enter
+            .append('div')
+            .attr('class', 'inspector-border import-approve');
+
+        this.focusEntity = entity;
+        importApprove.append('button')
+            .text('Approve')
+            .on('click', function() {
+                this.focusEntity.approvedForEdit = true;
+                // apply a CSS class to any point / line / polygon approved
+                selectAll('.layer-osm .' + this.focusEntity.id).classed('import-approved', true);
+            }.bind(this));
+        
+        importApprove.append('button')
+            .text('Delete')
+            .on('click', (function() {
+                operationDelete([this.focusEntity.id], context)();
+            }).bind(this));
+        selectAll('.import-approve').classed('hide', entity.approvedForEdit);
 
         enter
             .append('div')
@@ -64510,7 +64553,7 @@ function uiEntityEditor(context) {
         enter
             .append('div')
             .attr('class', 'inspector-border inspector-preset');
-
+        
         enter
             .append('div')
             .attr('class', 'inspector-border raw-tag-editor inspector-inner');
@@ -68218,7 +68261,7 @@ osmWay.prototype = Object.create(osmEntity$$1.prototype);
 lodash.extend(osmWay.prototype, {
     type: 'way',
     nodes: [],
-
+    approvedForEdit: true,
 
     copy: function(resolver, copies) {
         if (copies[this.id])
