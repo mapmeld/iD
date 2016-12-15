@@ -42954,14 +42954,20 @@ function modeSave$$1(context) {
         id: 'save'
     };
     
-    // when clicking the save button, filter out entities which were not approved manually
-    var deletions = [];
-    lodash.map(window.importedEntities, function(entity) {
-        if (!entity.approvedForEdit) {
-            deletions.push(entity.id); 
-        }
-    });
-    operationDelete(deletions, context)();
+    if (select('input[name="approvalProcess"]:checked').property('value') === 'individual') {
+        // when clicking the save button, filter out entities which were not approved manually
+        var deletions = [];
+        lodash.map(window.importedEntities, function(entity) {
+            try {
+                if (!entity.approvedForEdit && context.entity(entity.id)) {
+                    deletions.push(entity.id); 
+                }
+            } catch(e) {
+                // entity was already deleted, can't be removed here
+            }
+        });
+        operationDelete(deletions, context)();
+    }
 
     var ui = uiCommit(context)
             .on('cancel', cancel)
@@ -59486,6 +59492,28 @@ function uiMapData(context) {
                     setEsriLayer(this.parentElement.firstChild.value, esriDownloadAll);
                 });
             
+            // radio buttons to decide how data is finalized on OSM
+            var approvalPhase = urlEntry.append('div')
+                .attr('class', 'import-approval')
+                .append('h4').text('Review data before importing?');
+            
+            var individualApproval = approvalPhase.append('label');
+            individualApproval.append('input')
+                .attr('class', 'approval-individual')
+                .attr('type', 'radio')
+                .attr('name', 'approvalProcess')
+                .attr('value', 'individual')
+                .property('checked', true);
+            individualApproval.append('span').text('Manually select import features');
+            
+            var allApproval = approvalPhase.append('label');
+            allApproval.append('input')
+                .attr('class', 'approval-all')
+                .attr('type', 'radio')
+                .attr('name', 'approvalProcess')
+                .attr('value', 'all');
+            allApproval.append('span').text('Select all features by default');
+            
             body.append('table')
                     .attr('border', '1')
                     .attr('class', 'esri-table hide'); // tag-list
@@ -64537,7 +64565,7 @@ function uiEntityEditor(context) {
             .on('click', (function() {
                 operationDelete([this.focusEntity.id], context)();
             }).bind(this));
-        selectAll('.import-approve').classed('hide', entity.approvedForEdit);
+        selectAll('.import-approve').classed('hide', entity.approvedForEdit || (select('input[name="approvalProcess"]:checked').property('value') === 'all'));
 
         enter
             .append('div')
