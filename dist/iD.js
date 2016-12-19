@@ -39827,3970 +39827,1012 @@ function svgDefs(context) {
     };
 }
 
-// Copies a variable number of methods from source to target.
-function utilRebind(target, source) {
-    var i = 1, n = arguments.length, method;
-    while (++i < n) {
-        target[method = arguments[i]] = d3_rebind(target, source, source[method]);
-    }
-    return target;
-}
-
-// Method is assumed to be a standard D3 getter-setter:
-// If passed with no arguments, gets the value.
-// If passed with arguments, sets the value and returns the target.
-function d3_rebind(target, source, method) {
-    return function() {
-        var value = method.apply(source, arguments);
-        return value === source ? target : value;
-    };
-}
-
-function behaviorEdit(context) {
-
-    function edit() {
-        context.map()
-            .minzoom(context.minEditableZoom());
-    }
-
-
-    edit.off = function() {
-        context.map()
-            .minzoom(0);
-    };
-
-
-    return edit;
-}
-
 /*
-   The hover behavior adds the `.hover` class on mouseover to all elements to which
-   the identical datum is bound, and removes it on mouseout.
-
-   The :hover pseudo-class is insufficient for iD's purposes because a datum's visual
-   representation may consist of several elements scattered throughout the DOM hierarchy.
-   Only one of these elements can have the :hover pseudo-class, but all of them will
-   have the .hover class.
+ * Copyright 2015 Esri
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the Liscense.
  */
-function behaviorHover() {
-    var dispatch$$1 = dispatch('hover'),
-        selection$$1 = select(null),
-        buttonDown,
-        altDisables,
-        target;
 
-
-    function keydown() {
-        if (altDisables && event.keyCode === d3keybinding.modifierCodes.alt) {
-            dispatch$$1.call('hover', this, null);
-            selection$$1.selectAll('.hover')
-                .classed('hover-suppressed', true)
-                .classed('hover', false);
-        }
+// checks if 2 x,y points are equal
+function pointsEqual (a, b) {
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] !== b[i]) {
+      return false;
     }
-
-
-    function keyup() {
-        if (altDisables && event.keyCode === d3keybinding.modifierCodes.alt) {
-            dispatch$$1.call('hover', this, target ? target.id : null);
-            selection$$1.selectAll('.hover-suppressed')
-                .classed('hover-suppressed', false)
-                .classed('hover', true);
-        }
-    }
-
-
-    var hover = function(__) {
-        selection$$1 = __;
-
-        selection$$1
-            .on('mouseover.hover', mouseover)
-            .on('mouseout.hover', mouseout)
-            .on('mousedown.hover', mousedown);
-
-        select(window)
-            .on('keydown.hover', keydown)
-            .on('keyup.hover', keyup);
-
-
-        function mouseover() {
-            if (buttonDown) return;
-            var target = event.target;
-            enter(target ? target.__data__ : null);
-        }
-
-
-        function mouseout() {
-            if (buttonDown) return;
-            var target = event.relatedTarget;
-            enter(target ? target.__data__ : null);
-        }
-
-
-        function mousedown() {
-            buttonDown = true;
-            select(window)
-                .on('mouseup.hover', mouseup, true);
-        }
-
-
-        function mouseup() {
-            buttonDown = false;
-            select(window)
-                .on('mouseup.hover', null, true);
-        }
-
-
-        function enter(d) {
-            if (d === target) return;
-            target = d;
-
-            selection$$1.selectAll('.hover')
-                .classed('hover', false);
-            selection$$1.selectAll('.hover-suppressed')
-                .classed('hover-suppressed', false);
-
-            if (target instanceof osmEntity$$1) {
-                var selector$$1 = '.' + target.id;
-
-                if (target.type === 'relation') {
-                    target.members.forEach(function(member) {
-                        selector$$1 += ', .' + member.id;
-                    });
-                }
-
-                var suppressed = altDisables && event && event.altKey;
-
-                selection$$1.selectAll(selector$$1)
-                    .classed(suppressed ? 'hover-suppressed' : 'hover', true);
-
-                dispatch$$1.call('hover', this, target.id);
-            } else {
-                dispatch$$1.call('hover', this, null);
-            }
-        }
-
-    };
-
-
-    hover.off = function(selection$$1) {
-        selection$$1.selectAll('.hover')
-            .classed('hover', false);
-        selection$$1.selectAll('.hover-suppressed')
-            .classed('hover-suppressed', false);
-
-        selection$$1
-            .on('mouseover.hover', null)
-            .on('mouseout.hover', null)
-            .on('mousedown.hover', null);
-
-        select(window)
-            .on('keydown.hover', null)
-            .on('keyup.hover', null);
-    };
-
-
-    hover.altDisables = function(_) {
-        if (!arguments.length) return altDisables;
-        altDisables = _;
-        return hover;
-    };
-
-
-    return utilRebind(hover, dispatch$$1, 'on');
+  }
+  return true;
 }
 
-function refresh(selection, node) {
-    var cr = node.getBoundingClientRect();
-    var prop = [cr.width, cr.height];
-    selection.property('__dimensions__', prop);
-    return prop;
+// checks if the first and last points of a ring are equal and closes the ring
+function closeRing (coordinates) {
+  if (!pointsEqual(coordinates[0], coordinates[coordinates.length - 1])) {
+    coordinates.push(coordinates[0]);
+  }
+  return coordinates;
 }
 
-function utilGetDimensions(selection, force) {
-    if (!selection || selection.empty()) {
-        return [0, 0];
-    }
-    var node = selection.node(),
-        cached = selection.property('__dimensions__');
-    return (!cached || force) ? refresh(selection, node) : cached;
+// determine if polygon ring coordinates are clockwise. clockwise signifies outer ring, counter-clockwise an inner ring
+// or hole. this logic was found at http://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-
+// points-are-in-clockwise-order
+function ringIsClockwise (ringToTest) {
+  var total = 0;
+  var i = 0;
+  var rLength = ringToTest.length;
+  var pt1 = ringToTest[i];
+  var pt2;
+  for (i; i < rLength - 1; i++) {
+    pt2 = ringToTest[i + 1];
+    total += (pt2[0] - pt1[0]) * (pt2[1] + pt1[1]);
+    pt1 = pt2;
+  }
+  return (total >= 0);
 }
 
-
-function utilSetDimensions(selection, dimensions) {
-    if (!selection || selection.empty()) {
-        return selection;
-    }
-    var node = selection.node();
-    if (dimensions === null) {
-        refresh(selection, node);
-        return selection;
-    }
-    return selection
-        .property('__dimensions__', [dimensions[0], dimensions[1]])
-        .attr('width', dimensions[0])
-        .attr('height', dimensions[1]);
-}
-
-function behaviorTail() {
-    var text$$1,
-        container,
-        xmargin = 25,
-        tooltipSize = [0, 0],
-        selectionSize = [0, 0];
-
-
-    function tail(selection$$1) {
-        if (!text$$1) return;
-
-        select(window)
-            .on('resize.tail', function() { selectionSize = utilGetDimensions(selection$$1); });
-
-        container = select(document.body)
-            .append('div')
-            .style('display', 'none')
-            .attr('class', 'tail tooltip-inner');
-
-        container.append('div')
-            .text(text$$1);
-
-        selection$$1
-            .on('mousemove.tail', mousemove)
-            .on('mouseenter.tail', mouseenter)
-            .on('mouseleave.tail', mouseleave);
-
-        container
-            .on('mousemove.tail', mousemove);
-
-        tooltipSize = utilGetDimensions(container);
-        selectionSize = utilGetDimensions(selection$$1);
-
-
-        function show() {
-            container.style('display', 'block');
-            tooltipSize = utilGetDimensions(container);
-        }
-
-
-        function mousemove() {
-            if (container.style('display') === 'none') show();
-            var xoffset = ((event.clientX + tooltipSize[0] + xmargin) > selectionSize[0]) ?
-                -tooltipSize[0] - xmargin : xmargin;
-            container.classed('left', xoffset > 0);
-            utilSetTransform(container, event.clientX + xoffset, event.clientY);
-        }
-
-
-        function mouseleave() {
-            if (event.relatedTarget !== container.node()) {
-                container.style('display', 'none');
-            }
-        }
-
-
-        function mouseenter() {
-            if (event.relatedTarget !== container.node()) {
-                show();
-            }
-        }
-    }
-
-
-    tail.off = function(selection$$1) {
-        if (!text$$1) return;
-
-        container
-            .on('mousemove.tail', null)
-            .remove();
-
-        selection$$1
-            .on('mousemove.tail', null)
-            .on('mouseenter.tail', null)
-            .on('mouseleave.tail', null);
-
-        select(window)
-            .on('resize.tail', null);
-    };
-
-
-    tail.text = function(_) {
-        if (!arguments.length) return text$$1;
-        text$$1 = _;
-        return tail;
-    };
-
-
-    return tail;
-}
-
-behaviorDraw.usedTails = {};
-behaviorDraw.disableSpace = false;
-behaviorDraw.lastSpace = null;
-
-
-function behaviorDraw(context) {
-    var dispatch$$1 = dispatch('move', 'click', 'clickWay',
-            'clickNode', 'undo', 'cancel', 'finish'),
-        keybinding = d3keybinding('draw'),
-        hover = behaviorHover(context)
-            .altDisables(true)
-            .on('hover', context.ui().sidebar.hover),
-        tail = behaviorTail(),
-        edit = behaviorEdit(context),
-        closeTolerance = 4,
-        tolerance = 12,
-        mouseLeave = false,
-        lastMouse = null,
-        cached = behaviorDraw;
-
-
-    function datum() {
-        if (event.altKey) return {};
-
-        if (event.type === 'keydown') {
-            return (lastMouse && lastMouse.target.__data__) || {};
-        } else {
-            return event.target.__data__ || {};
-        }
-    }
-
-
-    function mousedown() {
-
-        function point() {
-            var p = context.container().node();
-            return touchId !== null ? touches(p).filter(function(p) {
-                return p.identifier === touchId;
-            })[0] : mouse(p);
-        }
-
-        var element = select(this),
-            touchId = event.touches ? event.changedTouches[0].identifier : null,
-            t1 = +new Date(),
-            p1 = point();
-
-        element.on('mousemove.draw', null);
-
-        select(window).on('mouseup.draw', function() {
-            var t2 = +new Date(),
-                p2 = point(),
-                dist = geoEuclideanDistance(p1, p2);
-
-            element.on('mousemove.draw', mousemove);
-            select(window).on('mouseup.draw', null);
-
-            if (dist < closeTolerance || (dist < tolerance && (t2 - t1) < 500)) {
-                // Prevent a quick second click
-                select(window).on('click.draw-block', function() {
-                    event.stopPropagation();
-                }, true);
-
-                context.map().dblclickEnable(false);
-
-                window.setTimeout(function() {
-                    context.map().dblclickEnable(true);
-                    select(window).on('click.draw-block', null);
-                }, 500);
-
-                click();
-            }
-        }, true);
-    }
-
-
-    function mousemove() {
-        lastMouse = event;
-        dispatch$$1.call('move', this, datum());
-    }
-
-
-    function mouseenter() {
-        mouseLeave = false;
-    }
-
-
-    function mouseleave() {
-        mouseLeave = true;
-    }
-
-
-    function click() {
-        var d = datum();
-        if (d.type === 'way') {
-            var dims = context.map().dimensions(),
-                mouse$$1 = context.mouse(),
-                pad = 5,
-                trySnap = mouse$$1[0] > pad && mouse$$1[0] < dims[0] - pad &&
-                    mouse$$1[1] > pad && mouse$$1[1] < dims[1] - pad;
-
-            if (trySnap) {
-                var choice = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection),
-                    edge = [d.nodes[choice.index - 1], d.nodes[choice.index]];
-                dispatch$$1.call('clickWay', this, choice.loc, edge);
-            } else {
-                dispatch$$1.call('click', this, context.map().mouseCoordinates());
-            }
-
-        } else if (d.type === 'node') {
-            dispatch$$1.call('clickNode', this, d);
-
-        } else {
-            dispatch$$1.call('click', this, context.map().mouseCoordinates());
-        }
-    }
-
-
-    function space() {
-        var currSpace = context.mouse();
-        if (cached.disableSpace && cached.lastSpace) {
-            var dist = geoEuclideanDistance(cached.lastSpace, currSpace);
-            if (dist > tolerance) {
-                cached.disableSpace = false;
-            }
-        }
-
-        if (cached.disableSpace || mouseLeave || !lastMouse) return;
-
-        // user must move mouse or release space bar to allow another click
-        cached.lastSpace = currSpace;
-        cached.disableSpace = true;
-
-        select(window).on('keyup.space-block', function() {
-            cached.disableSpace = false;
-            select(window).on('keyup.space-block', null);
-        });
-
-        event.preventDefault();
-        click();
-    }
-
-
-    function backspace() {
-        event.preventDefault();
-        dispatch$$1.call('undo');
-    }
-
-
-    function del() {
-        event.preventDefault();
-        dispatch$$1.call('cancel');
-    }
-
-
-    function ret() {
-        event.preventDefault();
-        dispatch$$1.call('finish');
-    }
-
-
-    function draw(selection$$1) {
-        context.install(hover);
-        context.install(edit);
-
-        if (!context.inIntro() && !cached.usedTails[tail.text()]) {
-            context.install(tail);
-        }
-
-        keybinding
-            .on('⌫', backspace)
-            .on('⌦', del)
-            .on('⎋', ret)
-            .on('↩', ret)
-            .on('space', space)
-            .on('⌥space', space);
-
-        selection$$1
-            .on('mouseenter.draw', mouseenter)
-            .on('mouseleave.draw', mouseleave)
-            .on('mousedown.draw', mousedown)
-            .on('mousemove.draw', mousemove);
-
-        select(document)
-            .call(keybinding);
-
-        return draw;
-    }
-
-
-    draw.off = function(selection$$1) {
-        context.ui().sidebar.hover.cancel();
-        context.uninstall(hover);
-        context.uninstall(edit);
-
-        if (!context.inIntro() && !cached.usedTails[tail.text()]) {
-            context.uninstall(tail);
-            cached.usedTails[tail.text()] = true;
-        }
-
-        selection$$1
-            .on('mouseenter.draw', null)
-            .on('mouseleave.draw', null)
-            .on('mousedown.draw', null)
-            .on('mousemove.draw', null);
-
-        select(window)
-            .on('mouseup.draw', null);
-            // note: keyup.space-block, click.draw-block should remain
-
-        select(document)
-            .call(keybinding.off);
-    };
-
-
-    draw.tail = function(_) {
-        tail.text(_);
-        return draw;
-    };
-
-
-    return utilRebind(draw, dispatch$$1, 'on');
-}
-
-function behaviorAddWay(context) {
-    var dispatch$$1 = dispatch('start', 'startFromWay', 'startFromNode'),
-        draw = behaviorDraw(context);
-
-    var addWay = function(surface) {
-        draw.on('click', function() { dispatch$$1.apply('start', this, arguments); })
-            .on('clickWay', function() { dispatch$$1.apply('startFromWay', this, arguments); })
-            .on('clickNode', function() { dispatch$$1.apply('startFromNode', this, arguments); })
-            .on('cancel', addWay.cancel)
-            .on('finish', addWay.cancel);
-
-        context.map()
-            .dblclickEnable(false);
-
-        surface.call(draw);
-    };
-
-
-    addWay.off = function(surface) {
-        surface.call(draw.off);
-    };
-
-
-    addWay.cancel = function() {
-        window.setTimeout(function() {
-            context.map().dblclickEnable(true);
-        }, 1000);
-
-        context.enter(modeBrowse$$1(context));
-    };
-
-
-    addWay.tail = function(text$$1) {
-        draw.tail(text$$1);
-        return addWay;
-    };
-
-
-    return utilRebind(addWay, dispatch$$1, 'on');
-}
-
-function behaviorBreathe() {
-    var duration = 800,
-        steps = 4,
-        selector$$1 = '.selected.shadow, .selected .shadow',
-        selected = select(null),
-        classed = '',
-        params = {},
-        done = false,
-        timer$$1;
-
-
-    // This is a workaround for a bug in rollup v0.36
-    // https://github.com/rollup/rollup/issues/984
-    // The symbol for this default export is not used anywhere, but it
-    // needs to be called in order to be included in the bundle.
-    var t = transition();
-
-
-    function ratchetyInterpolator(a, b, steps, units) {
-        a = parseFloat(a);
-        b = parseFloat(b);
-        var sample = quantize$1()
-            .domain([0, 1])
-            .range(quantize(interpolateNumber(a, b), steps));
-
-        return function(t) {
-            return String(sample(t)) + (units || '');
-        };
-    }
-
-
-    function reset(selection$$1) {
-        selection$$1
-            .style('stroke-opacity', null)
-            .style('stroke-width', null)
-            .style('fill-opacity', null)
-            .style('r', null);
-    }
-
-
-    function setAnimationParams(transition$$1, fromTo) {
-        var toFrom = (fromTo === 'from' ? 'to' : 'from');
-
-        transition$$1
-            .styleTween('stroke-opacity', function(d) {
-                return ratchetyInterpolator(
-                    params[d.id][toFrom].opacity,
-                    params[d.id][fromTo].opacity,
-                    steps
-                );
-            })
-            .styleTween('stroke-width', function(d) {
-                return ratchetyInterpolator(
-                    params[d.id][toFrom].width,
-                    params[d.id][fromTo].width,
-                    steps,
-                    'px'
-                );
-            })
-            .styleTween('fill-opacity', function(d) {
-                return ratchetyInterpolator(
-                    params[d.id][toFrom].opacity,
-                    params[d.id][fromTo].opacity,
-                    steps
-                );
-            })
-            .styleTween('r', function(d) {
-                return ratchetyInterpolator(
-                    params[d.id][toFrom].width,
-                    params[d.id][fromTo].width,
-                    steps,
-                    'px'
-                );
-            });
-    }
-
-
-    function calcAnimationParams(selection$$1) {
-        selection$$1
-            .call(reset)
-            .each(function(d) {
-                var s = select(this),
-                    tag = s.node().tagName,
-                    p = {'from': {}, 'to': {}},
-                    opacity, width;
-
-                // determine base opacity and width
-                if (tag === 'circle') {
-                    opacity = parseFloat(s.style('fill-opacity') || 0.5);
-                    width = parseFloat(s.style('r') || 15.5);
-                } else {
-                    opacity = parseFloat(s.style('stroke-opacity') || 0.7);
-                    width = parseFloat(s.style('stroke-width') || 10);
-                }
-
-                // calculate from/to interpolation params..
-                p.tag = tag;
-                p.from.opacity = opacity * 0.6;
-                p.to.opacity = opacity * 1.25;
-                p.from.width = width * 0.9;
-                p.to.width = width * (tag === 'circle' ? 1.5 : 1.25);
-                params[d.id] = p;
-            });
-    }
-
-
-    function run(surface, fromTo) {
-        var toFrom = (fromTo === 'from' ? 'to' : 'from'),
-            currSelected = surface.selectAll(selector$$1),
-            currClassed = surface.attr('class');
-
-        if (done || currSelected.empty()) {
-            selected.call(reset);
-            return;
-        }
-
-        if (!lodash.isEqual(currSelected.data(), selected.data()) || currClassed !== classed) {
-            selected.call(reset);
-            classed = currClassed;
-            selected = currSelected.call(calcAnimationParams);
-        }
-
-        selected
-            .transition()
-            .duration(duration)
-            .call(setAnimationParams, fromTo)
-            .on('end', function() {
-                surface.call(run, toFrom);
-            });
-    }
-
-
-    var breathe = function(surface) {
-        done = false;
-        timer$$1 = timer(function() {
-            // wait for elements to actually become selected
-            if (surface.selectAll(selector$$1).empty()) {
-                return false;
-            }
-
-            surface.call(run, 'from');
-            timer$$1.stop();
-            return true;
-        }, 20);
-    };
-
-
-    breathe.off = function() {
-        done = true;
-        timer$$1.stop();
-        selected
-            .interrupt()
-            .call(reset);
-    };
-
-
-    return breathe;
-}
-
-function behaviorCopy(context) {
-    var keybinding = d3keybinding('copy');
-
-
-    function groupEntities(ids, graph) {
-        var entities = ids.map(function (id) { return graph.entity(id); });
-        return lodash.extend({relation: [], way: [], node: []},
-            lodash.groupBy(entities, function(entity) { return entity.type; }));
-    }
-
-
-    function getDescendants(id, graph, descendants) {
-        var entity = graph.entity(id),
-            i, children;
-
-        descendants = descendants || {};
-
-        if (entity.type === 'relation') {
-            children = lodash.map(entity.members, 'id');
-        } else if (entity.type === 'way') {
-            children = entity.nodes;
-        } else {
-            children = [];
-        }
-
-        for (i = 0; i < children.length; i++) {
-            if (!descendants[children[i]]) {
-                descendants[children[i]] = true;
-                descendants = getDescendants(children[i], graph, descendants);
-            }
-        }
-
-        return descendants;
-    }
-
-
-    function doCopy() {
-        event.preventDefault();
-        if (context.inIntro()) return;
-
-        var graph = context.graph(),
-            selected = groupEntities(context.selectedIDs(), graph),
-            canCopy = [],
-            skip = {},
-            i, entity;
-
-        for (i = 0; i < selected.relation.length; i++) {
-            entity = selected.relation[i];
-            if (!skip[entity.id] && entity.isComplete(graph)) {
-                canCopy.push(entity.id);
-                skip = getDescendants(entity.id, graph, skip);
-            }
-        }
-        for (i = 0; i < selected.way.length; i++) {
-            entity = selected.way[i];
-            if (!skip[entity.id]) {
-                canCopy.push(entity.id);
-                skip = getDescendants(entity.id, graph, skip);
-            }
-        }
-        for (i = 0; i < selected.node.length; i++) {
-            entity = selected.node[i];
-            if (!skip[entity.id]) {
-                canCopy.push(entity.id);
-            }
-        }
-
-        context.copyIDs(canCopy);
-    }
-
-
-    function copy() {
-        keybinding.on(uiCmd('⌘C'), doCopy);
-        select(document).call(keybinding);
-        return copy;
-    }
-
-
-    copy.off = function() {
-        select(document).call(keybinding.off);
-    };
-
-
-    return copy;
-}
-
-/*
-    `behaviorDrag` is like `d3.behavior.drag`, with the following differences:
-
-    * The `origin` function is expected to return an [x, y] tuple rather than an
-      {x, y} object.
-    * The events are `start`, `move`, and `end`.
-      (https://github.com/mbostock/d3/issues/563)
-    * The `start` event is not dispatched until the first cursor movement occurs.
-      (https://github.com/mbostock/d3/pull/368)
-    * The `move` event has a `point` and `delta` [x, y] tuple properties rather
-      than `x`, `y`, `dx`, and `dy` properties.
-    * The `end` event is not dispatched if no movement occurs.
-    * An `off` function is available that unbinds the drag's internal event handlers.
-    * Delegation is supported via the `delegate` function.
-
- */
-function behaviorDrag() {
-    var event$$1 = dispatch('start', 'move', 'end'),
-        origin = null,
-        selector$$1 = '',
-        filter = null,
-        event_, target, surface;
-
-
-    function d3_eventCancel() {
-        event.stopPropagation();
-        event.preventDefault();
-    }
-
-    function eventOf(thiz, argumentz) {
-        return function(e1) {
-            e1.target = drag$$1;
-            customEvent(e1, event$$1.apply, event$$1, [e1.type, thiz, argumentz]);
-        };
-    }
-
-    var d3_event_userSelectProperty = utilPrefixCSSProperty('UserSelect'),
-        d3_event_userSelectSuppress = d3_event_userSelectProperty ?
-            function () {
-                var selection$$1 = selection(),
-                    select$$1 = selection$$1.style(d3_event_userSelectProperty);
-                selection$$1.style(d3_event_userSelectProperty, 'none');
-                return function () {
-                    selection$$1.style(d3_event_userSelectProperty, select$$1);
-                };
-            } :
-            function (type) {
-                var w = select(window).on('selectstart.' + type, d3_eventCancel);
-                return function () {
-                    w.on('selectstart.' + type, null);
-                };
-            };
-
-
-    function mousedown() {
-        target = this;
-        event_ = eventOf(target, arguments);
-
-        var eventTarget = event.target,
-            touchId = event.touches ? event.changedTouches[0].identifier : null,
-            offset,
-            origin_ = point(),
-            started = false,
-            selectEnable = d3_event_userSelectSuppress(touchId !== null ? 'drag-' + touchId : 'drag');
-
-        var w = select(window)
-            .on(touchId !== null ? 'touchmove.drag-' + touchId : 'mousemove.drag', dragmove)
-            .on(touchId !== null ? 'touchend.drag-' + touchId : 'mouseup.drag', dragend, true);
-
-        if (origin) {
-            offset = origin.apply(target, arguments);
-            offset = [offset[0] - origin_[0], offset[1] - origin_[1]];
-        } else {
-            offset = [0, 0];
-        }
-
-        if (touchId === null) event.stopPropagation();
-
-        function point() {
-            var p = target.parentNode || surface;
-            return touchId !== null ? touches(p).filter(function(p) {
-                return p.identifier === touchId;
-            })[0] : mouse(p);
-        }
-
-
-        function dragmove() {
-            var p = point(),
-                dx = p[0] - origin_[0],
-                dy = p[1] - origin_[1];
-
-            if (dx === 0 && dy === 0)
-                return;
-
-            if (!started) {
-                started = true;
-                event_({
-                    type: 'start'
-                });
-            }
-
-            origin_ = p;
-            d3_eventCancel();
-
-            event_({
-                type: 'move',
-                point: [p[0] + offset[0],  p[1] + offset[1]],
-                delta: [dx, dy]
-            });
-        }
-
-
-        function dragend() {
-            if (started) {
-                event_({
-                    type: 'end'
-                });
-
-                d3_eventCancel();
-                if (event.target === eventTarget) w.on('click.drag', click, true);
-            }
-
-            w.on(touchId !== null ? 'touchmove.drag-' + touchId : 'mousemove.drag', null)
-                .on(touchId !== null ? 'touchend.drag-' + touchId : 'mouseup.drag', null);
-            selectEnable();
-        }
-
-
-        function click() {
-            d3_eventCancel();
-            w.on('click.drag', null);
-        }
-    }
-
-
-    function drag$$1(selection$$1) {
-        var matchesSelector = utilPrefixDOMProperty('matchesSelector'),
-            delegate = mousedown;
-
-        if (selector$$1) {
-            delegate = function() {
-                var root = this,
-                    target = event.target;
-                for (; target && target !== root; target = target.parentNode) {
-                    if (target[matchesSelector](selector$$1) &&
-                            (!filter || filter(target.__data__))) {
-                        return mousedown.call(target, target.__data__);
-                    }
-                }
-            };
-        }
-
-        selection$$1.on('mousedown.drag' + selector$$1, delegate)
-            .on('touchstart.drag' + selector$$1, delegate);
-    }
-
-
-    drag$$1.off = function(selection$$1) {
-        selection$$1.on('mousedown.drag' + selector$$1, null)
-            .on('touchstart.drag' + selector$$1, null);
-    };
-
-
-    drag$$1.delegate = function(_) {
-        if (!arguments.length) return selector$$1;
-        selector$$1 = _;
-        return drag$$1;
-    };
-
-
-    drag$$1.filter = function(_) {
-        if (!arguments.length) return origin;
-        filter = _;
-        return drag$$1;
-    };
-
-
-    drag$$1.origin = function (_) {
-        if (!arguments.length) return origin;
-        origin = _;
-        return drag$$1;
-    };
-
-
-    drag$$1.cancel = function() {
-        select(window)
-            .on('mousemove.drag', null)
-            .on('mouseup.drag', null);
-        return drag$$1;
-    };
-
-
-    drag$$1.target = function() {
-        if (!arguments.length) return target;
-        target = arguments[0];
-        event_ = eventOf(target, Array.prototype.slice.call(arguments, 1));
-        return drag$$1;
-    };
-
-
-    drag$$1.surface = function() {
-        if (!arguments.length) return surface;
-        surface = arguments[0];
-        return drag$$1;
-    };
-
-
-    return utilRebind(drag$$1, event$$1, 'on');
-}
-
-function behaviorDrawWay(context, wayId, index, mode, baseGraph) {
-
-    var way = context.entity(wayId),
-        isArea = context.geometry(wayId) === 'area',
-        finished = false,
-        annotation = t((way.isDegenerate() ?
-            'operations.start.annotation.' :
-            'operations.continue.annotation.') + context.geometry(wayId)),
-        draw = behaviorDraw(context);
-
-    var startIndex = typeof index === 'undefined' ? way.nodes.length - 1 : 0,
-        start = osmNode({loc: context.graph().entity(way.nodes[startIndex]).loc}),
-        end = osmNode({loc: context.map().mouseCoordinates()}),
-        segment = osmWay({
-            nodes: typeof index === 'undefined' ? [start.id, end.id] : [end.id, start.id],
-            tags: lodash.clone(way.tags)
-        });
-
-    var fn = context[way.isDegenerate() ? 'replace' : 'perform'];
-    if (isArea) {
-        fn(actionAddEntity(end),
-            actionAddVertex(wayId, end.id, index)
-        );
-    } else {
-        fn(actionAddEntity(start),
-            actionAddEntity(end),
-            actionAddEntity(segment)
-        );
-    }
-
-
-    function move(datum) {
-        var loc;
-
-        if (datum.type === 'node' && datum.id !== end.id) {
-            loc = datum.loc;
-
-        } else if (datum.type === 'way' && datum.id !== segment.id) {
-            var dims = context.map().dimensions(),
-                mouse = context.mouse(),
-                pad = 5,
-                trySnap = mouse[0] > pad && mouse[0] < dims[0] - pad &&
-                    mouse[1] > pad && mouse[1] < dims[1] - pad;
-
-            if (trySnap) {
-                loc = geoChooseEdge(context.childNodes(datum), context.mouse(), context.projection).loc;
-            }
-        }
-
-        if (!loc) {
-            loc = context.map().mouseCoordinates();
-        }
-
-        context.replace(actionMoveNode(end.id, loc));
-    }
-
-
-    function undone() {
-        finished = true;
-        context.enter(modeBrowse$$1(context));
-    }
-
-
-    function setActiveElements() {
-        var active = isArea ? [wayId, end.id] : [segment.id, start.id, end.id];
-        context.surface().selectAll(utilEntitySelector(active))
-            .classed('active', true);
-    }
-
-
-    var drawWay = function(surface) {
-        draw.on('move', move)
-            .on('click', drawWay.add)
-            .on('clickWay', drawWay.addWay)
-            .on('clickNode', drawWay.addNode)
-            .on('undo', context.undo)
-            .on('cancel', drawWay.cancel)
-            .on('finish', drawWay.finish);
-
-        context.map()
-            .dblclickEnable(false)
-            .on('drawn.draw', setActiveElements);
-
-        setActiveElements();
-
-        surface.call(draw);
-
-        context.history()
-            .on('undone.draw', undone);
-    };
-
-
-    drawWay.off = function(surface) {
-        if (!finished)
-            context.pop();
-
-        context.map()
-            .on('drawn.draw', null);
-
-        surface.call(draw.off)
-            .selectAll('.active')
-            .classed('active', false);
-
-        context.history()
-            .on('undone.draw', null);
-    };
-
-
-    function ReplaceTemporaryNode(newNode) {
-        return function(graph) {
-            if (isArea) {
-                return graph
-                    .replace(way.addNode(newNode.id, index))
-                    .remove(end);
-
-            } else {
-                return graph
-                    .replace(graph.entity(wayId).addNode(newNode.id, index))
-                    .remove(end)
-                    .remove(segment)
-                    .remove(start);
-            }
-        };
-    }
-
-
-    // Accept the current position of the temporary node and continue drawing.
-    drawWay.add = function(loc) {
-        // prevent duplicate nodes
-        var last = context.hasEntity(way.nodes[way.nodes.length - (isArea ? 2 : 1)]);
-        if (last && last.loc[0] === loc[0] && last.loc[1] === loc[1]) return;
-
-        var newNode = osmNode({loc: loc});
-
-        context.replace(
-            actionAddEntity(newNode),
-            ReplaceTemporaryNode(newNode),
-            annotation
-        );
-
-        finished = true;
-        context.enter(mode);
-    };
-
-
-    // Connect the way to an existing way.
-    drawWay.addWay = function(loc, edge) {
-        var previousEdge = startIndex ?
-            [way.nodes[startIndex], way.nodes[startIndex - 1]] :
-            [way.nodes[0], way.nodes[1]];
-
-        // Avoid creating duplicate segments
-        if (!isArea && geoEdgeEqual(edge, previousEdge))
-            return;
-
-        var newNode = osmNode({ loc: loc });
-
-        context.perform(
-            actionAddMidpoint({ loc: loc, edge: edge}, newNode),
-            ReplaceTemporaryNode(newNode),
-            annotation
-        );
-
-        finished = true;
-        context.enter(mode);
-    };
-
-
-    // Connect the way to an existing node and continue drawing.
-    drawWay.addNode = function(node) {
-        // Avoid creating duplicate segments
-        if (way.areAdjacent(node.id, way.nodes[way.nodes.length - 1])) return;
-
-        context.perform(
-            ReplaceTemporaryNode(node),
-            annotation
-        );
-
-        finished = true;
-        context.enter(mode);
-    };
-
-
-    // Finish the draw operation, removing the temporary node. If the way has enough
-    // nodes to be valid, it's selected. Otherwise, return to browse mode.
-    drawWay.finish = function() {
-        context.pop();
-        finished = true;
-
-        window.setTimeout(function() {
-            context.map().dblclickEnable(true);
-        }, 1000);
-
-        if (context.hasEntity(wayId)) {
-            context.enter(
-                modeSelect(context, [wayId]).suppressMenu(true).newFeature(true)
-            );
-        } else {
-            context.enter(modeBrowse$$1(context));
-        }
-    };
-
-
-    // Cancel the draw operation and return to browse, deleting everything drawn.
-    drawWay.cancel = function() {
-        context.perform(
-            utilFunctor(baseGraph),
-            t('operations.cancel_draw.annotation'));
-
-        window.setTimeout(function() {
-            context.map().dblclickEnable(true);
-        }, 1000);
-
-        finished = true;
-        context.enter(modeBrowse$$1(context));
-    };
-
-
-    drawWay.tail = function(text) {
-        draw.tail(text);
-        return drawWay;
-    };
-
-
-    return drawWay;
-}
-
-function behaviorHash(context) {
-    var s0 = null, // cached window.location.hash
-        lat = 90 - 1e-8; // allowable latitude range
-
-
-    var parser = function(map$$1, s) {
-        var q = utilStringQs(s);
-        var args = (q.map || '').split('/').map(Number);
-        if (args.length < 3 || args.some(isNaN)) {
-            return true; // replace bogus hash
-        } else if (s !== formatter(map$$1).slice(1)) {
-            map$$1.centerZoom([args[2],
-                Math.min(lat, Math.max(-lat, args[1]))], args[0]);
-        }
-    };
-
-
-    var formatter = function(map$$1) {
-        var mode = context.mode(),
-            center = map$$1.center(),
-            zoom$$1 = map$$1.zoom(),
-            precision = Math.max(0, Math.ceil(Math.log(zoom$$1) / Math.LN2)),
-            q = lodash.omit(utilStringQs(window.location.hash.substring(1)), 'comment'),
-            newParams = {};
-
-        if (mode && mode.id === 'browse') {
-            delete q.id;
-        } else {
-            var selected = context.selectedIDs().filter(function(id) {
-                return !context.entity(id).isNew();
-            });
-            if (selected.length) {
-                newParams.id = selected.join(',');
-            }
-        }
-
-        newParams.map = zoom$$1.toFixed(2) +
-                '/' + center[1].toFixed(precision) +
-                '/' + center[0].toFixed(precision);
-
-        return '#' + utilQsString(lodash.assign(q, newParams), true);
-    };
-
-
-    function update() {
-        if (context.inIntro()) return;
-        var s1 = formatter(context.map());
-        if (s0 !== s1) {
-            window.location.replace(s0 = s1);  // don't recenter the map!
-        }
-    }
-
-
-    var throttledUpdate = lodash.throttle(update, 500);
-
-
-    function hashchange() {
-        if (window.location.hash === s0) return;  // ignore spurious hashchange events
-        if (parser(context.map(), (s0 = window.location.hash).substring(1))) {
-            update(); // replace bogus hash
-        }
-    }
-
-
-    function hash() {
-        context.map()
-            .on('move.hash', throttledUpdate);
-
-        context
-            .on('enter.hash', throttledUpdate);
-
-        select(window)
-            .on('hashchange.hash', hashchange);
-
-        if (window.location.hash) {
-            var q = utilStringQs(window.location.hash.substring(1));
-            if (q.id) context.zoomToEntity(q.id.split(',')[0], !q.map);
-            if (q.comment) context.storage('comment', q.comment);
-            hashchange();
-            if (q.map) hash.hadHash = true;
-        }
-    }
-
-
-    hash.off = function() {
-        throttledUpdate.cancel();
-
-        context.map()
-            .on('move.hash', null);
-
-        context
-            .on('enter.hash', null);
-
-        select(window)
-            .on('hashchange.hash', null);
-
-        window.location.hash = '';
-    };
-
-
-    return hash;
-}
-
-function behaviorLasso(context) {
-
-    var behavior = function(selection$$1) {
-        var lasso;
-
-
-        function mousedown() {
-            var button = 0;  // left
-            if (event.button === button && event.shiftKey === true) {
-                lasso = null;
-
-                selection$$1
-                    .on('mousemove.lasso', mousemove)
-                    .on('mouseup.lasso', mouseup);
-
-                event.stopPropagation();
-            }
-        }
-
-
-        function mousemove() {
-            if (!lasso) {
-                lasso = uiLasso(context);
-                context.surface().call(lasso);
-            }
-
-            lasso.p(context.mouse());
-        }
-
-
-        function normalize(a, b) {
-            return [
-                [Math.min(a[0], b[0]), Math.min(a[1], b[1])],
-                [Math.max(a[0], b[0]), Math.max(a[1], b[1])]];
-        }
-
-
-        function lassoed() {
-            if (!lasso) return [];
-
-            var graph = context.graph(),
-                bounds = lasso.extent().map(context.projection.invert),
-                extent$$1 = geoExtent$$1(normalize(bounds[0], bounds[1]));
-
-            return lodash.map(context.intersects(extent$$1).filter(function(entity) {
-                return entity.type === 'node' &&
-                    geoPointInPolygon(context.projection(entity.loc), lasso.coordinates) &&
-                    !context.features().isHidden(entity, graph, entity.geometry(graph));
-            }), 'id');
-        }
-
-
-        function mouseup() {
-            selection$$1
-                .on('mousemove.lasso', null)
-                .on('mouseup.lasso', null);
-
-            if (!lasso) return;
-
-            var ids = lassoed();
-            lasso.close();
-
-            if (ids.length) {
-                context.enter(modeSelect(context, ids));
-            }
-        }
-
-        selection$$1
-            .on('mousedown.lasso', mousedown);
-    };
-
-
-    behavior.off = function(selection$$1) {
-        selection$$1.on('mousedown.lasso', null);
-    };
-
-
-    return behavior;
-}
-
-function behaviorPaste(context) {
-    var keybinding = d3keybinding('paste');
-
-    function omitTag(v, k) {
-        return (
-            k === 'phone' ||
-            k === 'fax' ||
-            k === 'email' ||
-            k === 'website' ||
-            k === 'url' ||
-            k === 'note' ||
-            k === 'description' ||
-            k.indexOf('name') !== -1 ||
-            k.indexOf('wiki') === 0 ||
-            k.indexOf('addr:') === 0 ||
-            k.indexOf('contact:') === 0
-        );
-    }
-
-
-    function doPaste() {
-        event.preventDefault();
-        if (context.inIntro()) return;
-
-        var baseGraph = context.graph(),
-            mouse$$1 = context.mouse(),
-            projection = context.projection,
-            viewport = geoExtent$$1(projection.clipExtent()).polygon();
-
-        if (!geoPointInPolygon(mouse$$1, viewport)) return;
-
-        var extent$$1 = geoExtent$$1(),
-            oldIDs = context.copyIDs(),
-            oldGraph = context.copyGraph(),
-            newIDs = [];
-
-        if (!oldIDs.length) return;
-
-        var action = actionCopyEntities(oldIDs, oldGraph);
-        context.perform(action);
-
-        var copies = action.copies();
-        for (var id in copies) {
-            var oldEntity = oldGraph.entity(id),
-                newEntity = copies[id];
-
-            extent$$1._extend(oldEntity.extent(oldGraph));
-            newIDs.push(newEntity.id);
-            context.perform(
-                actionChangeTags(newEntity.id, lodash.omit(newEntity.tags, omitTag))
-            );
-        }
-
-        // Put pasted objects where mouse pointer is..
-        var center = projection(extent$$1.center()),
-            delta = [ mouse$$1[0] - center[0], mouse$$1[1] - center[1] ];
-
-        context.perform(actionMove(newIDs, delta, projection));
-        context.enter(modeMove$$1(context, newIDs, baseGraph));
-    }
-
-
-    function paste() {
-        keybinding.on(uiCmd('⌘V'), doPaste);
-        select(document).call(keybinding);
-        return paste;
-    }
-
-
-    paste.off = function() {
-        select(document).call(keybinding.off);
-    };
-
-
-    return paste;
-}
-
-function behaviorSelect(context) {
-
-    function keydown() {
-        if (event && event.shiftKey) {
-            context.surface()
-                .classed('behavior-multiselect', true);
-        }
-    }
-
-
-    function keyup() {
-        if (!event || !event.shiftKey) {
-            context.surface()
-                .classed('behavior-multiselect', false);
-        }
-    }
-
-
-    function click() {
-        var datum = event.target.__data__,
-            lasso = select('#surface .lasso').node(),
-            mode = context.mode();
-
-        if (!(datum instanceof osmEntity$$1)) {
-            if (!event.shiftKey && !lasso && mode.id !== 'browse')
-                context.enter(modeBrowse$$1(context));
-
-        } else if (!event.shiftKey && !lasso) {
-            // Avoid re-entering Select mode with same entity.
-            if (context.selectedIDs().length !== 1 || context.selectedIDs()[0] !== datum.id) {
-                context.enter(modeSelect(context, [datum.id]));
-            } else {
-                mode.suppressMenu(false).reselect();
-            }
-        } else if (context.selectedIDs().indexOf(datum.id) >= 0) {
-            var selectedIDs = lodash.without(context.selectedIDs(), datum.id);
-            context.enter(selectedIDs.length ? modeSelect(context, selectedIDs) : modeBrowse$$1(context));
-
-        } else {
-            context.enter(modeSelect(context, context.selectedIDs().concat([datum.id])));
-        }
-    }
-
-
-    var behavior = function(selection$$1) {
-        select(window)
-            .on('keydown.select', keydown)
-            .on('keyup.select', keyup);
-
-        selection$$1.on('click.select', click);
-
-        keydown();
-    };
-
-
-    behavior.off = function(selection$$1) {
-        select(window)
-            .on('keydown.select', null)
-            .on('keyup.select', null);
-
-        selection$$1.on('click.select', null);
-
-        keyup();
-    };
-
-
-    return behavior;
-}
-
-function modeAddArea$$1(context) {
-    var mode = {
-        id: 'add-area',
-        button: 'area',
-        title: t('modes.add_area.title'),
-        description: t('modes.add_area.description'),
-        key: '3'
-    };
-
-    var behavior = behaviorAddWay(context)
-            .tail(t('modes.add_area.tail'))
-            .on('start', start)
-            .on('startFromWay', startFromWay)
-            .on('startFromNode', startFromNode),
-        defaultTags = { area: 'yes' };
-
-
-    function start(loc) {
-        var graph = context.graph(),
-            node = osmNode({ loc: loc }),
-            way = osmWay({ tags: defaultTags });
-
-        context.perform(
-            actionAddEntity(node),
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id),
-            actionAddVertex(way.id, node.id)
-        );
-
-        context.enter(modeDrawArea(context, way.id, graph));
-    }
-
-
-    function startFromWay(loc, edge) {
-        var graph = context.graph(),
-            node = osmNode({ loc: loc }),
-            way = osmWay({ tags: defaultTags });
-
-        context.perform(
-            actionAddEntity(node),
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id),
-            actionAddVertex(way.id, node.id),
-            actionAddMidpoint({ loc: loc, edge: edge }, node)
-        );
-
-        context.enter(modeDrawArea(context, way.id, graph));
-    }
-
-
-    function startFromNode(node) {
-        var graph = context.graph(),
-            way = osmWay({ tags: defaultTags });
-
-        context.perform(
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id),
-            actionAddVertex(way.id, node.id)
-        );
-
-        context.enter(modeDrawArea(context, way.id, graph));
-    }
-
-
-    mode.enter = function() {
-        context.install(behavior);
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(behavior);
-    };
-
-
-    return mode;
-}
-
-function modeAddLine$$1(context) {
-    var mode = {
-        id: 'add-line',
-        button: 'line',
-        title: t('modes.add_line.title'),
-        description: t('modes.add_line.description'),
-        key: '2'
-    };
-
-    var behavior = behaviorAddWay(context)
-        .tail(t('modes.add_line.tail'))
-        .on('start', start)
-        .on('startFromWay', startFromWay)
-        .on('startFromNode', startFromNode);
-
-
-    function start(loc) {
-        var baseGraph = context.graph(),
-            node = osmNode({ loc: loc }),
-            way = osmWay();
-
-        context.perform(
-            actionAddEntity(node),
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id)
-        );
-
-        context.enter(modeDrawLine(context, way.id, baseGraph));
-    }
-
-
-    function startFromWay(loc, edge) {
-        var baseGraph = context.graph(),
-            node = osmNode({ loc: loc }),
-            way = osmWay();
-
-        context.perform(
-            actionAddEntity(node),
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id),
-            actionAddMidpoint({ loc: loc, edge: edge }, node)
-        );
-
-        context.enter(modeDrawLine(context, way.id, baseGraph));
-    }
-
-
-    function startFromNode(node) {
-        var baseGraph = context.graph(),
-            way = osmWay();
-
-        context.perform(
-            actionAddEntity(way),
-            actionAddVertex(way.id, node.id)
-        );
-
-        context.enter(modeDrawLine(context, way.id, baseGraph));
-    }
-
-
-    mode.enter = function() {
-        context.install(behavior);
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(behavior);
-    };
-
-    return mode;
-}
-
-function modeAddPoint$$1(context) {
-    var mode = {
-        id: 'add-point',
-        button: 'point',
-        title: t('modes.add_point.title'),
-        description: t('modes.add_point.description'),
-        key: '1'
-    };
-
-    var behavior = behaviorDraw(context)
-        .tail(t('modes.add_point.tail'))
-        .on('click', add)
-        .on('clickWay', addWay)
-        .on('clickNode', addNode)
-        .on('cancel', cancel)
-        .on('finish', cancel);
-
-
-    function add(loc) {
-        var node = osmNode({ loc: loc });
-
-        context.perform(
-            actionAddEntity(node),
-            t('operations.add.annotation.point')
-        );
-
-        context.enter(
-            modeSelect(context, [node.id]).suppressMenu(true).newFeature(true)
-        );
-    }
-
-
-    function addWay(loc) {
-        add(loc);
-    }
-
-
-    function addNode(node) {
-        add(node.loc);
-    }
-
-
-    function cancel() {
-        context.enter(modeBrowse$$1(context));
-    }
-
-
-    mode.enter = function() {
-        context.install(behavior);
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(behavior);
-    };
-
-
-    return mode;
-}
-
-function modeBrowse$$1(context) {
-    var mode = {
-        button: 'browse',
-        id: 'browse',
-        title: t('modes.browse.title'),
-        description: t('modes.browse.description')
-    }, sidebar;
-
-    var behaviors = [
-        behaviorPaste(context),
-        behaviorHover(context).on('hover', context.ui().sidebar.hover),
-        behaviorSelect(context),
-        behaviorLasso(context),
-        modeDragNode$$1(context).behavior
-    ];
-
-
-    mode.enter = function() {
-        behaviors.forEach(function(behavior) {
-            context.install(behavior);
-        });
-
-        // Get focus on the body.
-        if (document.activeElement && document.activeElement.blur) {
-            document.activeElement.blur();
-        }
-
-        if (sidebar) {
-            context.ui().sidebar.show(sidebar);
-        } else {
-            context.ui().sidebar.select(null);
-        }
-    };
-
-
-    mode.exit = function() {
-        context.ui().sidebar.hover.cancel();
-        behaviors.forEach(function(behavior) {
-            context.uninstall(behavior);
-        });
-
-        if (sidebar) {
-            context.ui().sidebar.hide();
-        }
-    };
-
-
-    mode.sidebar = function(_) {
-        if (!arguments.length) return sidebar;
-        sidebar = _;
-        return mode;
-    };
-
-
-    return mode;
-}
-
-function modeDragNode$$1(context) {
-    var mode = {
-        id: 'drag-node',
-        button: 'browse'
-    };
-
-    var nudgeInterval,
-        activeIDs,
-        wasMidpoint,
-        isCancelled,
-        selectedIDs = [],
-        hover = behaviorHover(context).altDisables(true).on('hover', context.ui().sidebar.hover),
-        edit = behaviorEdit(context);
-
-
-    function edge(point, size) {
-        var pad = [30, 100, 30, 100];
-        if (point[0] > size[0] - pad[0]) return [-10, 0];
-        else if (point[0] < pad[2]) return [10, 0];
-        else if (point[1] > size[1] - pad[1]) return [0, -10];
-        else if (point[1] < pad[3]) return [0, 10];
-        return null;
-    }
-
-
-    function startNudge(nudge) {
-        if (nudgeInterval) window.clearInterval(nudgeInterval);
-        nudgeInterval = window.setInterval(function() {
-            context.pan(nudge);
-        }, 50);
-    }
-
-
-    function stopNudge() {
-        if (nudgeInterval) window.clearInterval(nudgeInterval);
-        nudgeInterval = null;
-    }
-
-
-    function moveAnnotation(entity) {
-        return t('operations.move.annotation.' + entity.geometry(context.graph()));
-    }
-
-
-    function connectAnnotation(entity) {
-        return t('operations.connect.annotation.' + entity.geometry(context.graph()));
-    }
-
-
-    function origin(entity) {
-        return context.projection(entity.loc);
-    }
-
-
-    function start(entity) {
-        isCancelled = event.sourceEvent.shiftKey ||
-            context.features().hasHiddenConnections(entity, context.graph());
-
-        if (isCancelled) return behavior.cancel();
-
-        wasMidpoint = entity.type === 'midpoint';
-        if (wasMidpoint) {
-            var midpoint = entity;
-            entity = osmNode();
-            context.perform(actionAddMidpoint(midpoint, entity));
-
-            var vertex = context.surface().selectAll('.' + entity.id);
-            behavior.target(vertex.node(), entity);
-
-        } else {
-            context.perform(actionNoop());
-        }
-
-        activeIDs = lodash.map(context.graph().parentWays(entity), 'id');
-        activeIDs.push(entity.id);
-        context.enter(mode);
-    }
-
-
-    function datum() {
-        if (event.sourceEvent.altKey) {
-            return {};
-        }
-
-        return event.sourceEvent.target.__data__ || {};
-    }
-
-
-    // via https://gist.github.com/shawnbot/4166283
-    function childOf(p, c) {
-        if (p === c) return false;
-        while (c && c !== p) c = c.parentNode;
-        return c === p;
-    }
-
-
-    function move(entity) {
-        if (isCancelled) return;
-        event.sourceEvent.stopPropagation();
-
-        var nudge = childOf(context.container().node(),
-            event.sourceEvent.toElement) &&
-            edge(event.point, context.map().dimensions());
-
-        if (nudge) startNudge(nudge);
-        else stopNudge();
-
-        var loc = context.projection.invert(event.point);
-
-        var d = datum();
-        if (d.type === 'node' && d.id !== entity.id) {
-            loc = d.loc;
-        } else if (d.type === 'way' && !select(event.sourceEvent.target).classed('fill')) {
-            loc = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection).loc;
-        }
-
-        context.replace(
-            actionMoveNode(entity.id, loc),
-            moveAnnotation(entity)
-        );
-    }
-
-
-    function end(entity) {
-        if (isCancelled) return;
-
-        var d = datum();
-
-        if (d.type === 'way') {
-            var choice = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection);
-            context.replace(
-                actionAddMidpoint({ loc: choice.loc, edge: [d.nodes[choice.index - 1], d.nodes[choice.index]] }, entity),
-                connectAnnotation(d)
-            );
-
-        } else if (d.type === 'node' && d.id !== entity.id) {
-            context.replace(
-                actionConnect([d.id, entity.id]),
-                connectAnnotation(d)
-            );
-
-        } else if (wasMidpoint) {
-            context.replace(
-                actionNoop(),
-                t('operations.add.annotation.vertex')
-            );
-
-        } else {
-            context.replace(
-                actionNoop(),
-                moveAnnotation(entity)
-            );
-        }
-
-        var reselection = selectedIDs.filter(function(id) {
-            return context.graph().hasEntity(id);
-        });
-
-        if (reselection.length) {
-            context.enter(modeSelect(context, reselection).suppressMenu(true));
-        } else {
-            context.enter(modeBrowse$$1(context));
-        }
+// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L504-L519
+function vertexIntersectsVertex (a1, a2, b1, b2) {
+  var uaT = (b2[0] - b1[0]) * (a1[1] - b1[1]) - (b2[1] - b1[1]) * (a1[0] - b1[0]);
+  var ubT = (a2[0] - a1[0]) * (a1[1] - b1[1]) - (a2[1] - a1[1]) * (a1[0] - b1[0]);
+  var uB = (b2[1] - b1[1]) * (a2[0] - a1[0]) - (b2[0] - b1[0]) * (a2[1] - a1[1]);
+
+  if (uB !== 0) {
+    var ua = uaT / uB;
+    var ub = ubT / uB;
+
+    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
+      return true;
     }
-
-
-    function cancel() {
-        behavior.cancel();
-        context.enter(modeBrowse$$1(context));
-    }
-
-
-    function setActiveElements() {
-        context.surface().selectAll(utilEntitySelector(activeIDs))
-            .classed('active', true);
-    }
-
-
-    var behavior = behaviorDrag()
-        .delegate('g.node, g.point, g.midpoint')
-        .surface(context.surface().node())
-        .origin(origin)
-        .on('start', start)
-        .on('move', move)
-        .on('end', end);
-
-
-    mode.enter = function() {
-        context.install(hover);
-        context.install(edit);
-
-        context.history()
-            .on('undone.drag-node', cancel);
-
-        context.map()
-            .on('drawn.drag-node', setActiveElements);
-
-        setActiveElements();
-    };
-
-
-    mode.exit = function() {
-        context.ui().sidebar.hover.cancel();
-        context.uninstall(hover);
-        context.uninstall(edit);
-
-        context.history()
-            .on('undone.drag-node', null);
-
-        context.map()
-            .on('drawn.drag-node', null);
-
-        context.surface()
-            .selectAll('.active')
-            .classed('active', false);
-
-        stopNudge();
-    };
-
-
-    mode.selectedIDs = function(_) {
-        if (!arguments.length) return selectedIDs;
-        selectedIDs = _;
-        return mode;
-    };
-
-
-    mode.behavior = behavior;
-
-
-    return mode;
-}
-
-function modeDrawArea(context, wayId, baseGraph) {
-    var mode = {
-        button: 'area',
-        id: 'draw-area'
-    };
-
-    var behavior;
-
-
-    mode.enter = function() {
-        var way = context.entity(wayId),
-            headId = way.nodes[way.nodes.length - 2],
-            tailId = way.first();
-
-        behavior = behaviorDrawWay(context, wayId, -1, mode, baseGraph)
-            .tail(t('modes.draw_area.tail'));
-
-        var addNode = behavior.addNode;
-
-        behavior.addNode = function(node) {
-            if (node.id === headId || node.id === tailId) {
-                behavior.finish();
-            } else {
-                addNode(node);
-            }
-        };
-
-        context.install(behavior);
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(behavior);
-    };
-
-
-    mode.selectedIDs = function() {
-        return [wayId];
-    };
-
-
-    return mode;
-}
-
-function modeDrawLine(context, wayId, baseGraph, affix) {
-    var mode = {
-        button: 'line',
-        id: 'draw-line'
-    };
-
-    var behavior;
-
-
-    mode.enter = function() {
-        var way = context.entity(wayId),
-            index = (affix === 'prefix') ? 0 : undefined,
-            headId = (affix === 'prefix') ? way.first() : way.last();
-
-        behavior = behaviorDrawWay(context, wayId, index, mode, baseGraph)
-            .tail(t('modes.draw_line.tail'));
-
-        var addNode = behavior.addNode;
-
-        behavior.addNode = function(node) {
-            if (node.id === headId) {
-                behavior.finish();
-            } else {
-                addNode(node);
-            }
-        };
-
-        context.install(behavior);
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(behavior);
-    };
-
-
-    mode.selectedIDs = function() {
-        return [wayId];
-    };
-
-
-    return mode;
-}
-
-function modeMove$$1(context, entityIDs, baseGraph) {
-    var mode = {
-        id: 'move',
-        button: 'browse'
-    };
-
-    var keybinding = d3keybinding('move'),
-        edit = behaviorEdit(context),
-        annotation = entityIDs.length === 1 ?
-            t('operations.move.annotation.' + context.geometry(entityIDs[0])) :
-            t('operations.move.annotation.multiple'),
-        cache,
-        origin,
-        nudgeInterval;
-
-
-    function vecSub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
-
-
-    function edge(point, size) {
-        var pad = [30, 100, 30, 100];
-        if (point[0] > size[0] - pad[0]) return [-10, 0];
-        else if (point[0] < pad[2]) return [10, 0];
-        else if (point[1] > size[1] - pad[1]) return [0, -10];
-        else if (point[1] < pad[3]) return [0, 10];
-        return null;
-    }
-
-
-    function startNudge(nudge) {
-        if (nudgeInterval) window.clearInterval(nudgeInterval);
-        nudgeInterval = window.setInterval(function() {
-            context.pan(nudge);
-
-            var currMouse = context.mouse(),
-                origMouse = context.projection(origin),
-                delta = vecSub(vecSub(currMouse, origMouse), nudge),
-                action = actionMove(entityIDs, delta, context.projection, cache);
-
-            context.overwrite(action, annotation);
-
-        }, 50);
-    }
-
-
-    function stopNudge() {
-        if (nudgeInterval) window.clearInterval(nudgeInterval);
-        nudgeInterval = null;
-    }
-
-
-    function move() {
-        var currMouse = context.mouse(),
-            origMouse = context.projection(origin),
-            delta = vecSub(currMouse, origMouse),
-            action = actionMove(entityIDs, delta, context.projection, cache);
-
-        context.overwrite(action, annotation);
-
-        var nudge = edge(currMouse, context.map().dimensions());
-        if (nudge) startNudge(nudge);
-        else stopNudge();
-    }
-
-
-    function finish() {
-        event.stopPropagation();
-        context.enter(modeSelect(context, entityIDs).suppressMenu(true));
-        stopNudge();
-    }
-
-
-    function cancel() {
-        if (baseGraph) {
-            while (context.graph() !== baseGraph) context.pop();
-            context.enter(modeBrowse$$1(context));
-        } else {
-            context.pop();
-            context.enter(modeSelect(context, entityIDs).suppressMenu(true));
-        }
-        stopNudge();
-    }
-
-
-    function undone() {
-        context.enter(modeBrowse$$1(context));
-    }
-
-
-    mode.enter = function() {
-        origin = context.map().mouseCoordinates();
-        cache = {};
-
-        context.install(edit);
-
-        context.perform(
-            actionNoop(),
-            annotation
-        );
-
-        context.surface()
-            .on('mousemove.move', move)
-            .on('click.move', finish);
-
-        context.history()
-            .on('undone.move', undone);
-
-        keybinding
-            .on('⎋', cancel)
-            .on('↩', finish);
-
-        select(document)
-            .call(keybinding);
-    };
-
-
-    mode.exit = function() {
-        stopNudge();
-
-        context.uninstall(edit);
-
-        context.surface()
-            .on('mousemove.move', null)
-            .on('click.move', null);
-
-        context.history()
-            .on('undone.move', null);
-
-        keybinding.off();
-    };
-
-
-    return mode;
-}
-
-function modeRotateWay$$1(context, wayId) {
-    var mode = {
-        id: 'rotate-way',
-        button: 'browse'
-    };
-
-    var keybinding = d3keybinding('rotate-way'),
-        edit = behaviorEdit(context);
-
-
-    mode.enter = function() {
-        context.install(edit);
-
-        var annotation = t('operations.rotate.annotation.' + context.geometry(wayId)),
-            way = context.graph().entity(wayId),
-            nodes = lodash.uniq(context.graph().childNodes(way)),
-            points = nodes.map(function(n) { return context.projection(n.loc); }),
-            pivot = d3polygonCentroid(points),
-            angle;
-
-        context.perform(
-            actionNoop(),
-            annotation
-        );
-
-        context.surface()
-            .on('mousemove.rotate-way', rotate)
-            .on('click.rotate-way', finish);
-
-        context.history()
-            .on('undone.rotate-way', undone);
-
-        keybinding
-            .on('⎋', cancel)
-            .on('↩', finish);
-
-        select(document)
-            .call(keybinding);
-
-
-        function rotate() {
-            var mousePoint = context.mouse(),
-                newAngle = Math.atan2(mousePoint[1] - pivot[1], mousePoint[0] - pivot[0]);
-
-            if (typeof angle === 'undefined') angle = newAngle;
-
-            context.replace(
-                actionRotateWay(wayId, pivot, newAngle - angle, context.projection),
-                annotation
-            );
-
-            angle = newAngle;
-        }
-
-
-        function finish() {
-            event.stopPropagation();
-            context.enter(modeSelect(context, [wayId]).suppressMenu(true));
-        }
-
-
-        function cancel() {
-            context.pop();
-            context.enter(modeSelect(context, [wayId]).suppressMenu(true));
-        }
-
-
-        function undone() {
-            context.enter(modeBrowse$$1(context));
-        }
-    };
-
-
-    mode.exit = function() {
-        context.uninstall(edit);
-
-        context.surface()
-            .on('mousemove.rotate-way', null)
-            .on('click.rotate-way', null);
-
-        context.history()
-            .on('undone.rotate-way', null);
-
-        keybinding.off();
-    };
-
-
-    return mode;
-}
-
-var JXON = new (function () {
-  var
-    sValueProp = 'keyValue', sAttributesProp = 'keyAttributes', sAttrPref = '@', /* you can customize these values */
-    aCache = [], rIsNull = /^\s*$/, rIsBool = /^(?:true|false)$/i;
-
-  function parseText (sValue) {
-    if (rIsNull.test(sValue)) { return null; }
-    if (rIsBool.test(sValue)) { return sValue.toLowerCase() === 'true'; }
-    if (isFinite(sValue)) { return parseFloat(sValue); }
-    if (isFinite(Date.parse(sValue))) { return new Date(sValue); }
-    return sValue;
   }
 
-  function EmptyTree () { }
-  EmptyTree.prototype.toString = function () { return 'null'; };
-  EmptyTree.prototype.valueOf = function () { return null; };
-
-  function objectify (vValue) {
-    return vValue === null ? new EmptyTree() : vValue instanceof Object ? vValue : new vValue.constructor(vValue);
-  }
-
-  function createObjTree (oParentNode, nVerb, bFreeze, bNesteAttr) {
-    var
-      nLevelStart = aCache.length, bChildren = oParentNode.hasChildNodes(),
-      bAttributes = oParentNode.hasAttributes(), bHighVerb = Boolean(nVerb & 2);
-
-    var
-      sProp, vContent, nLength = 0, sCollectedTxt = '',
-      vResult = bHighVerb ? {} : /* put here the default value for empty nodes: */ true;
-
-    if (bChildren) {
-      for (var oNode, nItem = 0; nItem < oParentNode.childNodes.length; nItem++) {
-        oNode = oParentNode.childNodes.item(nItem);
-        if (oNode.nodeType === 4) { sCollectedTxt += oNode.nodeValue; } /* nodeType is 'CDATASection' (4) */
-        else if (oNode.nodeType === 3) { sCollectedTxt += oNode.nodeValue.trim(); } /* nodeType is 'Text' (3) */
-        else if (oNode.nodeType === 1 && !oNode.prefix) { aCache.push(oNode); } /* nodeType is 'Element' (1) */
-      }
-    }
-
-    var nLevelEnd = aCache.length, vBuiltVal = parseText(sCollectedTxt);
-
-    if (!bHighVerb && (bChildren || bAttributes)) { vResult = nVerb === 0 ? objectify(vBuiltVal) : {}; }
-
-    for (var nElId = nLevelStart; nElId < nLevelEnd; nElId++) {
-      sProp = aCache[nElId].nodeName.toLowerCase();
-      vContent = createObjTree(aCache[nElId], nVerb, bFreeze, bNesteAttr);
-      if (vResult.hasOwnProperty(sProp)) {
-        if (vResult[sProp].constructor !== Array) { vResult[sProp] = [vResult[sProp]]; }
-        vResult[sProp].push(vContent);
-      } else {
-        vResult[sProp] = vContent;
-        nLength++;
-      }
-    }
-
-    if (bAttributes) {
-      var
-        nAttrLen = oParentNode.attributes.length,
-        sAPrefix = bNesteAttr ? '' : sAttrPref, oAttrParent = bNesteAttr ? {} : vResult;
-
-      for (var oAttrib, nAttrib = 0; nAttrib < nAttrLen; nLength++, nAttrib++) {
-        oAttrib = oParentNode.attributes.item(nAttrib);
-        oAttrParent[sAPrefix + oAttrib.name.toLowerCase()] = parseText(oAttrib.value.trim());
-      }
-
-      if (bNesteAttr) {
-        if (bFreeze) { Object.freeze(oAttrParent); }
-        vResult[sAttributesProp] = oAttrParent;
-        nLength -= nAttrLen - 1;
-      }
-    }
-
-    if (nVerb === 3 || (nVerb === 2 || nVerb === 1 && nLength > 0) && sCollectedTxt) {
-      vResult[sValueProp] = vBuiltVal;
-    } else if (!bHighVerb && nLength === 0 && sCollectedTxt) {
-      vResult = vBuiltVal;
-    }
-
-    if (bFreeze && (bHighVerb || nLength > 0)) { Object.freeze(vResult); }
-
-    aCache.length = nLevelStart;
-
-    return vResult;
-  }
-
-  function loadObjTree (oXMLDoc, oParentEl, oParentObj) {
-    var vValue, oChild;
-
-    if (oParentObj instanceof String || oParentObj instanceof Number || oParentObj instanceof Boolean) {
-      oParentEl.appendChild(oXMLDoc.createTextNode(oParentObj.toString())); /* verbosity level is 0 */
-    } else if (oParentObj.constructor === Date) {
-      oParentEl.appendChild(oXMLDoc.createTextNode(oParentObj.toGMTString()));    
-    }
-
-    for (var sName in oParentObj) {
-      vValue = oParentObj[sName];
-      if (isFinite(sName) || vValue instanceof Function) { continue; } /* verbosity level is 0 */
-      if (sName === sValueProp) {
-        if (vValue !== null && vValue !== true) { oParentEl.appendChild(oXMLDoc.createTextNode(vValue.constructor === Date ? vValue.toGMTString() : String(vValue))); }
-      } else if (sName === sAttributesProp) { /* verbosity level is 3 */
-        for (var sAttrib in vValue) { oParentEl.setAttribute(sAttrib, vValue[sAttrib]); }
-      } else if (sName.charAt(0) === sAttrPref) {
-        oParentEl.setAttribute(sName.slice(1), vValue);
-      } else if (vValue.constructor === Array) {
-        for (var nItem = 0; nItem < vValue.length; nItem++) {
-          oChild = oXMLDoc.createElement(sName);
-          loadObjTree(oXMLDoc, oChild, vValue[nItem]);
-          oParentEl.appendChild(oChild);
-        }
-      } else {
-        oChild = oXMLDoc.createElement(sName);
-        if (vValue instanceof Object) {
-          loadObjTree(oXMLDoc, oChild, vValue);
-        } else if (vValue !== null && vValue !== true) {
-          oChild.appendChild(oXMLDoc.createTextNode(vValue.toString()));
-        }
-        oParentEl.appendChild(oChild);
-     }
-   }
-  }
-
-  this.build = function (oXMLParent, nVerbosity /* optional */, bFreeze /* optional */, bNesteAttributes /* optional */) {
-    var _nVerb = arguments.length > 1 && typeof nVerbosity === 'number' ? nVerbosity & 3 : /* put here the default verbosity level: */ 1;
-    return createObjTree(oXMLParent, _nVerb, bFreeze || false, arguments.length > 3 ? bNesteAttributes : _nVerb === 3);    
-  };
-
-  this.unbuild = function (oObjTree) {    
-    var oNewDoc = document.implementation.createDocument('', '', null);
-    loadObjTree(oNewDoc, oNewDoc, oObjTree);
-    return oNewDoc;
-  };
-
-  this.stringify = function (oObjTree) {
-    return (new XMLSerializer()).serializeToString(JXON.unbuild(oObjTree));
-  };
-})();
-
-// var myObject = JXON.build(doc);
-// we got our javascript object! try: alert(JSON.stringify(myObject));
-
-// var newDoc = JXON.unbuild(myObject);
-// we got our Document instance! try: alert((new XMLSerializer()).serializeToString(newDoc));
-
-function operationCircularize(selectedIDs, context) {
-    var entityId = selectedIDs[0],
-        entity = context.entity(entityId),
-        extent = entity.extent(context.graph()),
-        geometry = context.geometry(entityId),
-        action = actionCircularize(entityId, context.projection);
-
-    var operation = function() {
-        var annotation = t('operations.circularize.annotation.' + geometry);
-        context.perform(action, annotation);
-    };
-
-
-    operation.available = function() {
-        return selectedIDs.length === 1 &&
-            entity.type === 'way' &&
-            lodash.uniq(entity.nodes).length > 1;
-    };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (extent.percentContainedIn(context.extent()) < 0.8) {
-            reason = 'too_large';
-        } else if (context.hasHiddenConnections(entityId)) {
-            reason = 'connected_to_hidden';
-        }
-        return action.disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.circularize.' + disable) :
-            t('operations.circularize.description.' + geometry);
-    };
-
-
-    operation.id = 'circularize';
-    operation.keys = [t('operations.circularize.key')];
-    operation.title = t('operations.circularize.title');
-
-
-    return operation;
+  return false;
 }
 
-function operationContinue(selectedIDs, context) {
-    var graph = context.graph(),
-        entities = selectedIDs.map(function(id) { return graph.entity(id); }),
-        geometries = lodash.extend({ line: [], vertex: [] },
-            lodash.groupBy(entities, function(entity) { return entity.geometry(graph); })),
-        vertex = geometries.vertex[0];
-
-
-    function candidateWays() {
-        return graph.parentWays(vertex).filter(function(parent) {
-            return parent.geometry(graph) === 'line' &&
-                parent.affix(vertex.id) &&
-                (geometries.line.length === 0 || geometries.line[0] === parent);
-        });
-    }
-
-
-    var operation = function() {
-        var candidate = candidateWays()[0];
-        context.enter(
-            modeDrawLine(context, candidate.id, context.graph(), candidate.affix(vertex.id))
-        );
-    };
-
-
-    operation.available = function() {
-        return geometries.vertex.length === 1 && geometries.line.length <= 1 &&
-            !context.features().hasHiddenConnections(vertex, context.graph());
-    };
-
-
-    operation.disabled = function() {
-        var candidates = candidateWays();
-        if (candidates.length === 0)
-            return 'not_eligible';
-        if (candidates.length > 1)
-            return 'multiple';
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.continue.' + disable) :
-            t('operations.continue.description');
-    };
-
-
-    operation.id = 'continue';
-    operation.keys = [t('operations.continue.key')];
-    operation.title = t('operations.continue.title');
-
-
-    return operation;
-}
-
-function operationDelete(selectedIDs, context) {
-    var action = actionDeleteMultiple(selectedIDs);
-
-    var operation = function() {
-        var annotation,
-            nextSelectedID;
-
-        if (selectedIDs.length > 1) {
-            annotation = t('operations.delete.annotation.multiple', { n: selectedIDs.length });
-
-        } else {
-            var id = selectedIDs[0],
-                entity = context.entity(id),
-                geometry = context.geometry(id),
-                parents = context.graph().parentWays(entity),
-                parent = parents[0];
-
-            annotation = t('operations.delete.annotation.' + geometry);
-
-            // Select the next closest node in the way.
-            if (geometry === 'vertex' && parents.length === 1 && parent.nodes.length > 2) {
-                var nodes = parent.nodes,
-                    i = nodes.indexOf(id);
-
-                if (i === 0) {
-                    i++;
-                } else if (i === nodes.length - 1) {
-                    i--;
-                } else {
-                    var a = geoSphericalDistance(entity.loc, context.entity(nodes[i - 1]).loc),
-                        b = geoSphericalDistance(entity.loc, context.entity(nodes[i + 1]).loc);
-                    i = a < b ? i - 1 : i + 1;
-                }
-
-                nextSelectedID = nodes[i];
-            }
-        }
-
-        if (nextSelectedID && context.hasEntity(nextSelectedID)) {
-            context.enter(modeSelect(context, [nextSelectedID]));
-        } else {
-            context.enter(modeBrowse$$1(context));
-        }
-
-        context.perform(action, annotation);
-    };
-
-
-    operation.available = function() {
+// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L521-L531
+function arrayIntersectsArray (a, b) {
+  for (var i = 0; i < a.length - 1; i++) {
+    for (var j = 0; j < b.length - 1; j++) {
+      if (vertexIntersectsVertex(a[i], a[i + 1], b[j], b[j + 1])) {
         return true;
-    };
+      }
+    }
+  }
 
-
-    operation.disabled = function() {
-        var reason;
-        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
-            reason = 'connected_to_hidden';
-        }
-        return action.disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.delete.' + disable) :
-            t('operations.delete.description');
-    };
-
-
-    operation.id = 'delete';
-    operation.keys = [uiCmd('⌘⌫'), uiCmd('⌘⌦'), uiCmd('⌦')];
-    operation.title = t('operations.delete.title');
-
-
-    return operation;
+  return false;
 }
 
-function operationDisconnect(selectedIDs, context) {
-    var vertices = lodash.filter(selectedIDs, function(entityId) {
-        return context.geometry(entityId) === 'vertex';
-    });
+// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L470-L480
+function coordinatesContainPoint (coordinates, point) {
+  var contains = false;
+  for (var i = -1, l = coordinates.length, j = l - 1; ++i < l; j = i) {
+    if (((coordinates[i][1] <= point[1] && point[1] < coordinates[j][1]) ||
+         (coordinates[j][1] <= point[1] && point[1] < coordinates[i][1])) &&
+        (point[0] < (coordinates[j][0] - coordinates[i][0]) * (point[1] - coordinates[i][1]) / (coordinates[j][1] - coordinates[i][1]) + coordinates[i][0])) {
+      contains = !contains;
+    }
+  }
+  return contains;
+}
 
-    var entityId = vertices[0],
-        action = actionDisconnect(entityId);
+// ported from terraformer-arcgis-parser.js https://github.com/Esri/terraformer-arcgis-parser/blob/master/terraformer-arcgis-parser.js#L106-L113
+function coordinatesContainCoordinates (outer, inner) {
+  var intersects = arrayIntersectsArray(outer, inner);
+  var contains = coordinatesContainPoint(outer, inner[0]);
+  if (!intersects && contains) {
+    return true;
+  }
+  return false;
+}
 
-    if (selectedIDs.length > 1) {
-        action.limitWays(lodash.without(selectedIDs, entityId));
+// do any polygons in this array contain any other polygons in this array?
+// used for checking for holes in arcgis rings
+// ported from terraformer-arcgis-parser.js https://github.com/Esri/terraformer-arcgis-parser/blob/master/terraformer-arcgis-parser.js#L117-L172
+function convertRingsToGeoJSON (rings) {
+  var outerRings = [];
+  var holes = [];
+  var x; // iterator
+  var outerRing; // current outer ring being evaluated
+  var hole; // current hole being evaluated
+
+  // for each ring
+  for (var r = 0; r < rings.length; r++) {
+    var ring = closeRing(rings[r].slice(0));
+    if (ring.length < 4) {
+      continue;
+    }
+    // is this ring an outer ring? is it clockwise?
+    if (ringIsClockwise(ring)) {
+      var polygon = [ ring ];
+      outerRings.push(polygon); // push to outer rings
+    } else {
+      holes.push(ring); // counterclockwise push to holes
+    }
+  }
+
+  var uncontainedHoles = [];
+
+  // while there are holes left...
+  while (holes.length) {
+    // pop a hole off out stack
+    hole = holes.pop();
+
+    // loop over all outer rings and see if they contain our hole.
+    var contained = false;
+    for (x = outerRings.length - 1; x >= 0; x--) {
+      outerRing = outerRings[x][0];
+      if (coordinatesContainCoordinates(outerRing, hole)) {
+        // the hole is contained push it into our polygon
+        outerRings[x].push(hole);
+        contained = true;
+        break;
+      }
     }
 
-    var operation = function() {
-        context.perform(action, t('operations.disconnect.annotation'));
-    };
-
-
-    operation.available = function() {
-        return vertices.length === 1;
-    };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
-            reason = 'connected_to_hidden';
-        }
-        return action.disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.disconnect.' + disable) :
-            t('operations.disconnect.description');
-    };
-
-
-    operation.id = 'disconnect';
-    operation.keys = [t('operations.disconnect.key')];
-    operation.title = t('operations.disconnect.title');
-
-
-    return operation;
-}
-
-function operationMerge(selectedIDs, context) {
-    var join = actionJoin(selectedIDs),
-        merge = actionMerge(selectedIDs),
-        mergePolygon = actionMergePolygon(selectedIDs);
-
-    var operation = function() {
-        var annotation = t('operations.merge.annotation', {n: selectedIDs.length}),
-            action;
-
-        if (!join.disabled(context.graph())) {
-            action = join;
-        } else if (!merge.disabled(context.graph())) {
-            action = merge;
-        } else {
-            action = mergePolygon;
-        }
-
-        context.perform(action, annotation);
-        var ids = selectedIDs.filter(function(id) { return context.hasEntity(id); });
-        context.enter(modeSelect(context, ids).suppressMenu(true));
-    };
-
-
-    operation.available = function() {
-        return selectedIDs.length >= 2;
-    };
-
-
-    operation.disabled = function() {
-        return join.disabled(context.graph()) &&
-            merge.disabled(context.graph()) &&
-            mergePolygon.disabled(context.graph());
-    };
-
-
-    operation.tooltip = function() {
-        var j = join.disabled(context.graph()),
-            m = merge.disabled(context.graph()),
-            p = mergePolygon.disabled(context.graph());
-
-        if (j === 'restriction' && m && p) {
-            return t('operations.merge.restriction',
-                { relation: context.presets().item('type/restriction').name() });
-        }
-
-        if (p === 'incomplete_relation' && j && m) {
-            return t('operations.merge.incomplete_relation');
-        }
-
-        if (j && m && p) {
-            return t('operations.merge.' + j);
-        }
-
-        return t('operations.merge.description');
-    };
-
-
-    operation.id = 'merge';
-    operation.keys = [t('operations.merge.key')];
-    operation.title = t('operations.merge.title');
-
-
-    return operation;
-}
-
-function operationMove(selectedIDs, context) {
-    var extent = selectedIDs.reduce(function(extent, id) {
-            return extent.extend(context.entity(id).extent(context.graph()));
-        }, geoExtent$$1());
-
-    var operation = function() {
-        context.enter(modeMove$$1(context, selectedIDs));
-    };
-
-
-    operation.available = function() {
-        return selectedIDs.length > 1 ||
-            context.entity(selectedIDs[0]).type !== 'node';
-    };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (extent.area() && extent.percentContainedIn(context.extent()) < 0.8) {
-            reason = 'too_large';
-        } else if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
-            reason = 'connected_to_hidden';
-        }
-
-        return actionMove(selectedIDs).disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.move.' + disable) :
-            t('operations.move.description');
-    };
-
-
-    operation.id = 'move';
-    operation.keys = [t('operations.move.key')];
-    operation.title = t('operations.move.title');
-
-
-    return operation;
-}
-
-function operationOrthogonalize(selectedIDs, context) {
-    var entityId = selectedIDs[0],
-        entity = context.entity(entityId),
-        extent = entity.extent(context.graph()),
-        geometry = context.geometry(entityId),
-        action = actionOrthogonalize(entityId, context.projection);
-
-    var operation = function() {
-        var annotation = t('operations.orthogonalize.annotation.' + geometry);
-        context.perform(action, annotation);
-    };
-
-
-    operation.available = function() {
-        return selectedIDs.length === 1 &&
-            entity.type === 'way' &&
-            entity.isClosed() &&
-            lodash.uniq(entity.nodes).length > 2;
-    };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (extent.percentContainedIn(context.extent()) < 0.8) {
-            reason = 'too_large';
-        } else if (context.hasHiddenConnections(entityId)) {
-            reason = 'connected_to_hidden';
-        }
-        return action.disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.orthogonalize.' + disable) :
-            t('operations.orthogonalize.description.' + geometry);
-    };
-
-
-    operation.id = 'orthogonalize';
-    operation.keys = [t('operations.orthogonalize.key')];
-    operation.title = t('operations.orthogonalize.title');
-
-
-    return operation;
-}
-
-function operationReverse(selectedIDs, context) {
-    var entityId = selectedIDs[0];
-
-    var operation = function() {
-        context.perform(
-            actionReverse(entityId),
-            t('operations.reverse.annotation')
-        );
-    };
-
-
-    operation.available = function() {
-        return selectedIDs.length === 1 &&
-            context.geometry(entityId) === 'line';
-    };
-
-
-    operation.disabled = function() {
-        return false;
-    };
-
-
-    operation.tooltip = function() {
-        return t('operations.reverse.description');
-    };
-
-
-    operation.id = 'reverse';
-    operation.keys = [t('operations.reverse.key')];
-    operation.title = t('operations.reverse.title');
-
-
-    return operation;
-}
-
-function operationRotate(selectedIDs, context) {
-    var entityId = selectedIDs[0],
-        entity = context.entity(entityId),
-        extent = entity.extent(context.graph()),
-        geometry = context.geometry(entityId);
-
-    var operation = function() {
-        context.enter(modeRotateWay$$1(context, entityId));
-    };
-
-
-    operation.available = function() {
-        if (selectedIDs.length !== 1 || entity.type !== 'way')
-            return false;
-        if (geometry === 'area')
-            return true;
-        if (entity.isClosed() &&
-            context.graph().parentRelations(entity).some(function(r) { return r.isMultipolygon(); }))
-            return true;
-        return false;
-    };
-
-
-    operation.disabled = function() {
-        if (extent.percentContainedIn(context.extent()) < 0.8) {
-            return 'too_large';
-        } else if (context.hasHiddenConnections(entityId)) {
-            return 'connected_to_hidden';
-        } else {
-            return false;
-        }
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.rotate.' + disable) :
-            t('operations.rotate.description');
-    };
-
-
-    operation.id = 'rotate';
-    operation.keys = [t('operations.rotate.key')];
-    operation.title = t('operations.rotate.title');
-
-
-    return operation;
-}
-
-function operationSplit(selectedIDs, context) {
-    var vertices = lodash.filter(selectedIDs, function(entityId) {
-        return context.geometry(entityId) === 'vertex';
-    });
-
-    var entityId = vertices[0],
-        action = actionSplit(entityId);
-
-    if (selectedIDs.length > 1) {
-        action.limitWays(lodash.without(selectedIDs, entityId));
+    // ring is not contained in any outer ring
+    // sometimes this happens https://github.com/Esri/esri-leaflet/issues/320
+    if (!contained) {
+      uncontainedHoles.push(hole);
+    }
+  }
+
+  // if we couldn't match any holes using contains we can try intersects...
+  while (uncontainedHoles.length) {
+    // pop a hole off out stack
+    hole = uncontainedHoles.pop();
+
+    // loop over all outer rings and see if any intersect our hole.
+    var intersects = false;
+
+    for (x = outerRings.length - 1; x >= 0; x--) {
+      outerRing = outerRings[x][0];
+      if (arrayIntersectsArray(outerRing, hole)) {
+        // the hole is contained push it into our polygon
+        outerRings[x].push(hole);
+        intersects = true;
+        break;
+      }
     }
 
+    if (!intersects) {
+      outerRings.push([hole.reverse()]);
+    }
+  }
 
-    var operation = function() {
-        var annotation;
-
-        var ways = action.ways(context.graph());
-        if (ways.length === 1) {
-            annotation = t('operations.split.annotation.' + context.geometry(ways[0].id));
-        } else {
-            annotation = t('operations.split.annotation.multiple', {n: ways.length});
-        }
-
-        var difference = context.perform(action, annotation);
-        context.enter(modeSelect(context, difference.extantIDs()));
+  if (outerRings.length === 1) {
+    return {
+      type: 'Polygon',
+      coordinates: outerRings[0]
     };
-
-
-    operation.available = function() {
-        return vertices.length === 1;
+  } else {
+    return {
+      type: 'MultiPolygon',
+      coordinates: outerRings
     };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
-            reason = 'connected_to_hidden';
-        }
-        return action.disabled(context.graph()) || reason;
-    };
-
-
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        if (disable) {
-            return t('operations.split.' + disable);
-        }
-
-        var ways = action.ways(context.graph());
-        if (ways.length === 1) {
-            return t('operations.split.description.' + context.geometry(ways[0].id));
-        } else {
-            return t('operations.split.description.multiple');
-        }
-    };
-
-
-    operation.id = 'split';
-    operation.keys = [t('operations.split.key')];
-    operation.title = t('operations.split.title');
-
-
-    return operation;
+  }
 }
 
-function operationStraighten(selectedIDs, context) {
-    var entityId = selectedIDs[0],
-        action = actionStraighten(entityId, context.projection);
-
-
-    function operation() {
-        var annotation = t('operations.straighten.annotation');
-        context.perform(action, annotation);
+// This function ensures that rings are oriented in the right directions
+// outer rings are clockwise, holes are counterclockwise
+// used for converting GeoJSON Polygons to ArcGIS Polygons
+function orientRings (poly) {
+  var output = [];
+  var polygon = poly.slice(0);
+  var outerRing = closeRing(polygon.shift().slice(0));
+  if (outerRing.length >= 4) {
+    if (!ringIsClockwise(outerRing)) {
+      outerRing.reverse();
     }
 
+    output.push(outerRing);
 
-    operation.available = function() {
-        var entity = context.entity(entityId);
-        return selectedIDs.length === 1 &&
-            entity.type === 'way' &&
-            !entity.isClosed() &&
-            lodash.uniq(entity.nodes).length > 2;
-    };
-
-
-    operation.disabled = function() {
-        var reason;
-        if (context.hasHiddenConnections(entityId)) {
-            reason = 'connected_to_hidden';
+    for (var i = 0; i < polygon.length; i++) {
+      var hole = closeRing(polygon[i].slice(0));
+      if (hole.length >= 4) {
+        if (ringIsClockwise(hole)) {
+          hole.reverse();
         }
-        return action.disabled(context.graph()) || reason;
-    };
+        output.push(hole);
+      }
+    }
+  }
 
+  return output;
+}
 
-    operation.tooltip = function() {
-        var disable = operation.disabled();
-        return disable ?
-            t('operations.straighten.' + disable) :
-            t('operations.straighten.description');
-    };
+// This function flattens holes in multipolygons to one array of polygons
+// used for converting GeoJSON Polygons to ArcGIS Polygons
+function flattenMultiPolygonRings (rings) {
+  var output = [];
+  for (var i = 0; i < rings.length; i++) {
+    var polygon = orientRings(rings[i]);
+    for (var x = polygon.length - 1; x >= 0; x--) {
+      var ring = polygon[x].slice(0);
+      output.push(ring);
+    }
+  }
+  return output;
+}
 
+// shallow object clone for feature properties and attributes
+// from http://jsperf.com/cloning-an-object/2
+function shallowClone (obj) {
+  var target = {};
+  for (var i in obj) {
+    if (obj.hasOwnProperty(i)) {
+      target[i] = obj[i];
+    }
+  }
+  return target;
+}
 
-    operation.id = 'straighten';
-    operation.keys = [t('operations.straighten.key')];
-    operation.title = t('operations.straighten.title');
+function arcgisToGeoJSON$1 (arcgis, idAttribute) {
+  var geojson = {};
 
+  if (typeof arcgis.x === 'number' && typeof arcgis.y === 'number') {
+    geojson.type = 'Point';
+    geojson.coordinates = [arcgis.x, arcgis.y];
+  }
 
-    return operation;
+  if (arcgis.points) {
+    geojson.type = 'MultiPoint';
+    geojson.coordinates = arcgis.points.slice(0);
+  }
+
+  if (arcgis.paths) {
+    if (arcgis.paths.length === 1) {
+      geojson.type = 'LineString';
+      geojson.coordinates = arcgis.paths[0].slice(0);
+    } else {
+      geojson.type = 'MultiLineString';
+      geojson.coordinates = arcgis.paths.slice(0);
+    }
+  }
+
+  if (arcgis.rings) {
+    geojson = convertRingsToGeoJSON(arcgis.rings.slice(0));
+  }
+
+  if (arcgis.geometry || arcgis.attributes) {
+    geojson.type = 'Feature';
+    geojson.geometry = (arcgis.geometry) ? arcgisToGeoJSON$1(arcgis.geometry) : null;
+    geojson.properties = (arcgis.attributes) ? shallowClone(arcgis.attributes) : null;
+    if (arcgis.attributes) {
+      geojson.id = arcgis.attributes[idAttribute] || arcgis.attributes.OBJECTID || arcgis.attributes.FID;
+    }
+  }
+
+  return geojson;
+}
+
+function geojsonToArcGIS (geojson, idAttribute) {
+  idAttribute = idAttribute || 'OBJECTID';
+  var spatialReference = { wkid: 4326 };
+  var result = {};
+  var i;
+
+  switch (geojson.type) {
+    case 'Point':
+      result.x = geojson.coordinates[0];
+      result.y = geojson.coordinates[1];
+      result.spatialReference = spatialReference;
+      break;
+    case 'MultiPoint':
+      result.points = geojson.coordinates.slice(0);
+      result.spatialReference = spatialReference;
+      break;
+    case 'LineString':
+      result.paths = [geojson.coordinates.slice(0)];
+      result.spatialReference = spatialReference;
+      break;
+    case 'MultiLineString':
+      result.paths = geojson.coordinates.slice(0);
+      result.spatialReference = spatialReference;
+      break;
+    case 'Polygon':
+      result.rings = orientRings(geojson.coordinates.slice(0));
+      result.spatialReference = spatialReference;
+      break;
+    case 'MultiPolygon':
+      result.rings = flattenMultiPolygonRings(geojson.coordinates.slice(0));
+      result.spatialReference = spatialReference;
+      break;
+    case 'Feature':
+      if (geojson.geometry) {
+        result.geometry = geojsonToArcGIS(geojson.geometry, idAttribute);
+      }
+      result.attributes = (geojson.properties) ? shallowClone(geojson.properties) : {};
+      if (geojson.id) {
+        result.attributes[idAttribute] = geojson.id;
+      }
+      break;
+    case 'FeatureCollection':
+      result = [];
+      for (i = 0; i < geojson.features.length; i++) {
+        result.push(geojsonToArcGIS(geojson.features[i], idAttribute));
+      }
+      break;
+    case 'GeometryCollection':
+      result = [];
+      for (i = 0; i < geojson.geometries.length; i++) {
+        result.push(geojsonToArcGIS(geojson.geometries[i], idAttribute));
+      }
+      break;
+  }
+
+  return result;
 }
 
 
-
-var Operations = Object.freeze({
-	operationCircularize: operationCircularize,
-	operationContinue: operationContinue,
-	operationDelete: operationDelete,
-	operationDisconnect: operationDisconnect,
-	operationMerge: operationMerge,
-	operationMove: operationMove,
-	operationOrthogonalize: operationOrthogonalize,
-	operationReverse: operationReverse,
-	operationRotate: operationRotate,
-	operationSplit: operationSplit,
-	operationStraighten: operationStraighten
+var index$12 = Object.freeze({
+	arcgisToGeoJSON: arcgisToGeoJSON$1,
+	geojsonToArcGIS: geojsonToArcGIS
 });
 
-function modeSave$$1(context) {
-    var mode = {
-        id: 'save'
-    };
-    
-    if (select('input[name="approvalProcess"]:checked').property('value') === 'individual') {
-        // when clicking the save button, filter out entities which were not approved manually
-        var deletions = [];
-        lodash.map(window.importedEntities, function(entity) {
-            try {
-                if (!entity.approvedForEdit && context.entity(entity.id)) {
-                    deletions.push(entity.id); 
-                }
-            } catch(e) {
-                // entity was already deleted, can't be removed here
-            }
-        });
-        operationDelete(deletions, context)();
-    }
+var require$$1 = ( index$12 && index$12['default'] ) || index$12;
 
-    var ui = uiCommit(context)
-            .on('cancel', cancel)
-            .on('save', save);
+var arcgisToGeoJSON = require$$1.arcgisToGeoJSON;
+var _$1 = lodash;
+var toGeoJSON = {};
 
+/**
+* Converts csv to geojson
+*
+* @param {array} csv - csv file parsed using https://www.npmjs.com/package/csv
+* @returns {object} geojson - geojson object
+* */
 
-    function cancel() {
-        context.enter(modeBrowse$$1(context));
-    }
+toGeoJSON.fromCSV = function (csv) {
+  var geojson = { type: 'FeatureCollection' };
+  var fieldNames = csvFieldNames(csv[0]);
+  var features = csv.slice(1);
+  geojson.features = _$1.map(features, function (feat, key) {
+    var feature = { type: 'Feature', id: key };
+    feature.properties = constructProps(fieldNames, feat);
+    feature.properties.OBJECTID = key;
+    feature.geometry = convertCSVGeom(fieldNames, feat);
+    return feature;
+  });
+  return geojson;
+};
 
+/**
+* Parse array of field names and sanitize them
+*
+* @param {array} inFields - array of field names
+* @returns {array} fieldNames - array of sanitized field Names
+*/
 
-    function save(e, tryAgain) {
-        function withChildNodes(ids, graph) {
-            return lodash.uniq(lodash.reduce(ids, function(result, id) {
-                var e = graph.entity(id);
-                if (e.type === 'way') {
-                    try {
-                        var cn = graph.childNodes(e);
-                        result.push.apply(result, lodash.map(lodash.filter(cn, 'version'), 'id'));
-                    } catch (err) {
-                        /* eslint-disable no-console */
-                        if (typeof console !== 'undefined') console.error(err);
-                        /* eslint-enable no-console */
-                    }
-                }
-                return result;
-            }, lodash.clone(ids)));
-        }
-
-        var loading = uiLoading(context).message(t('save.uploading')).blocking(true),
-            history = context.history(),
-            origChanges = history.changes(actionDiscardTags(history.difference())),
-            localGraph = context.graph(),
-            remoteGraph = coreGraph$$1(history.base(), true),
-            modified = lodash.filter(history.difference().summary(), {changeType: 'modified'}),
-            toCheck = lodash.map(lodash.map(modified, 'entity'), 'id'),
-            toLoad = withChildNodes(toCheck, localGraph),
-            conflicts = [],
-            errors = [];
-
-        if (!tryAgain) history.perform(actionNoop());  // checkpoint
-        context.container().call(loading);
-
-        if (toCheck.length) {
-            context.connection().loadMultiple(toLoad, loaded);
-        } else {
-            finalize();
-        }
-
-
-        // Reload modified entities into an alternate graph and check for conflicts..
-        function loaded(err, result) {
-            if (errors.length) return;
-
-            if (err) {
-                errors.push({
-                    msg: err.responseText,
-                    details: [ t('save.status_code', { code: err.status }) ]
-                });
-                showErrors();
-
-            } else {
-                var loadMore = [];
-                lodash.each(result.data, function(entity) {
-                    remoteGraph.replace(entity);
-                    toLoad = lodash.without(toLoad, entity.id);
-
-                    // Because loadMultiple doesn't download /full like loadEntity,
-                    // need to also load children that aren't already being checked..
-                    if (!entity.visible) return;
-                    if (entity.type === 'way') {
-                        loadMore.push.apply(loadMore,
-                            lodash.difference(entity.nodes, toCheck, toLoad, loadMore));
-                    } else if (entity.type === 'relation' && entity.isMultipolygon()) {
-                        loadMore.push.apply(loadMore,
-                            lodash.difference(lodash.map(entity.members, 'id'), toCheck, toLoad, loadMore));
-                    }
-                });
-
-                if (loadMore.length) {
-                    toLoad.push.apply(toLoad, loadMore);
-                    context.connection().loadMultiple(loadMore, loaded);
-                }
-
-                if (!toLoad.length) {
-                    checkConflicts();
-                }
-            }
-        }
-
-
-        function checkConflicts() {
-            function choice(id, text$$1, action) {
-                return { id: id, text: text$$1, action: function() { history.replace(action); } };
-            }
-            function formatUser(d) {
-                return '<a href="' + context.connection().userURL(d) + '" target="_blank">' + d + '</a>';
-            }
-            function entityName(entity) {
-                return utilDisplayName(entity) || (utilDisplayType(entity.id) + ' ' + entity.id);
-            }
-
-            function compareVersions(local$$1, remote) {
-                if (local$$1.version !== remote.version) return false;
-
-                if (local$$1.type === 'way') {
-                    var children = lodash.union(local$$1.nodes, remote.nodes);
-
-                    for (var i = 0; i < children.length; i++) {
-                        var a = localGraph.hasEntity(children[i]),
-                            b = remoteGraph.hasEntity(children[i]);
-
-                        if (a && b && a.version !== b.version) return false;
-                    }
-                }
-
-                return true;
-            }
-
-            lodash.each(toCheck, function(id) {
-                var local$$1 = localGraph.entity(id),
-                    remote = remoteGraph.entity(id);
-
-                if (compareVersions(local$$1, remote)) return;
-
-                var action = actionMergeRemoteChanges,
-                    merge$$1 = action(id, localGraph, remoteGraph, formatUser);
-
-                history.replace(merge$$1);
-
-                var mergeConflicts = merge$$1.conflicts();
-                if (!mergeConflicts.length) return;  // merged safely
-
-                var forceLocal = action(id, localGraph, remoteGraph).withOption('force_local'),
-                    forceRemote = action(id, localGraph, remoteGraph).withOption('force_remote'),
-                    keepMine = t('save.conflict.' + (remote.visible ? 'keep_local' : 'restore')),
-                    keepTheirs = t('save.conflict.' + (remote.visible ? 'keep_remote' : 'delete'));
-
-                conflicts.push({
-                    id: id,
-                    name: entityName(local$$1),
-                    details: mergeConflicts,
-                    chosen: 1,
-                    choices: [
-                        choice(id, keepMine, forceLocal),
-                        choice(id, keepTheirs, forceRemote)
-                    ]
-                });
-            });
-
-            finalize();
-        }
-
-
-        function finalize() {
-            if (conflicts.length) {
-                conflicts.sort(function(a,b) { return b.id.localeCompare(a.id); });
-                showConflicts();
-            } else if (errors.length) {
-                showErrors();
-            } else {
-                var changes = history.changes(actionDiscardTags(history.difference()));
-                if (changes.modified.length || changes.created.length || changes.deleted.length) {
-                    context.connection().putChangeset(
-                        changes,
-                        context.version,
-                        e.comment,
-                        history.imageryUsed(),
-                        function(err, changeset_id) {
-                            if (err) {
-                                errors.push({
-                                    msg: err.responseText,
-                                    details: [ t('save.status_code', { code: err.status }) ]
-                                });
-                                showErrors();
-                            } else {
-                                history.clearSaved();
-                                success(e, changeset_id);
-                                // Add delay to allow for postgres replication #1646 #2678
-                                window.setTimeout(function() {
-                                    loading.close();
-                                    context.flush();
-                                }, 2500);
-                            }
-                        });
-                } else {        // changes were insignificant or reverted by user
-                    loading.close();
-                    context.flush();
-                    cancel();
-                }
-            }
-        }
-
-
-        function showConflicts() {
-            var selection$$1 = context.container()
-                .select('#sidebar')
-                .append('div')
-                .attr('class','sidebar-component');
-
-            loading.close();
-
-            selection$$1.call(uiConflicts(context)
-                .list(conflicts)
-                .on('download', function() {
-                    var data = JXON.stringify(context.connection().osmChangeJXON('CHANGEME', origChanges)),
-                        win = window.open('data:text/xml,' + encodeURIComponent(data), '_blank');
-                    win.focus();
-                })
-                .on('cancel', function() {
-                    history.pop();
-                    selection$$1.remove();
-                })
-                .on('save', function() {
-                    for (var i = 0; i < conflicts.length; i++) {
-                        if (conflicts[i].chosen === 1) {  // user chose "keep theirs"
-                            var entity = context.hasEntity(conflicts[i].id);
-                            if (entity && entity.type === 'way') {
-                                var children = lodash.uniq(entity.nodes);
-                                for (var j = 0; j < children.length; j++) {
-                                    history.replace(actionRevert(children[j]));
-                                }
-                            }
-                            history.replace(actionRevert(conflicts[i].id));
-                        }
-                    }
-
-                    selection$$1.remove();
-                    save(e, true);
-                })
-            );
-        }
-
-
-        function showErrors() {
-            var selection$$1 = uiConfirm(context.container());
-
-            history.pop();
-            loading.close();
-
-            selection$$1
-                .select('.modal-section.header')
-                .append('h3')
-                .text(t('save.error'));
-
-            addErrors(selection$$1, errors);
-            selection$$1.okButton();
-        }
-
-
-        function addErrors(selection$$1, data) {
-            var message = selection$$1
-                .select('.modal-section.message-text');
-
-            var items = message
-                .selectAll('.error-container')
-                .data(data);
-
-            var enter = items.enter()
-                .append('div')
-                .attr('class', 'error-container');
-
-            enter
-                .append('a')
-                .attr('class', 'error-description')
-                .attr('href', '#')
-                .classed('hide-toggle', true)
-                .text(function(d) { return d.msg || t('save.unknown_error_details'); })
-                .on('click', function() {
-                    var error = select(this),
-                        detail = select(this.nextElementSibling),
-                        exp = error.classed('expanded');
-
-                    detail.style('display', exp ? 'none' : 'block');
-                    error.classed('expanded', !exp);
-
-                    event.preventDefault();
-                });
-
-            var details = enter
-                .append('div')
-                .attr('class', 'error-detail-container')
-                .style('display', 'none');
-
-            details
-                .append('ul')
-                .attr('class', 'error-detail-list')
-                .selectAll('li')
-                .data(function(d) { return d.details || []; })
-                .enter()
-                .append('li')
-                .attr('class', 'error-detail-item')
-                .text(function(d) { return d; });
-
-            items.exit()
-                .remove();
-        }
-
-    }
-
-
-    function success(e, changeset_id) {
-        context.enter(modeBrowse$$1(context)
-            .sidebar(uiSuccess(context)
-                .changeset({
-                    id: changeset_id,
-                    comment: e.comment
-                })
-                .on('cancel', function() {
-                    context.ui().sidebar.hide();
-                })
-            )
-        );
-    }
-
-
-    mode.enter = function() {
-        context.connection().authenticate(function(err) {
-            if (err) {
-                cancel();
-            } else {
-                context.ui().sidebar.show(ui);
-            }
-        });
-    };
-
-
-    mode.exit = function() {
-        context.ui().sidebar.hide();
-    };
-
-    return mode;
+function csvFieldNames(inFields) {
+  var fieldNames = _$1.map(inFields, function (field) {
+    return convertFieldName(field);
+  });
+  return fieldNames;
 }
 
-// Translate a MacOS key command into the appropriate Windows/Linux equivalent.
-// For example, ⌘Z -> Ctrl+Z
-function uiCmd(code) {
+/**
+* Convert CSV geom to geojson
+*
+* @param {array} fieldNames - array of field names
+* @param {array} feature - individual feature
+* @returns {object} geometry - geometry object
+*/
+
+function convertCSVGeom(columns, row) {
+  var geometry = _$1.reduce(columns, function (tempGeom, colName, i) {
+    if (isLongitudeField(colName)) tempGeom.coordinates[0] = parseFloat(row[i]);else if (isLatitudeField(colName)) tempGeom.coordinates[1] = parseFloat(row[i]);
+    return tempGeom;
+  }, { type: 'Point', coordinates: [null, null] });
+  return validGeometry(geometry) ? geometry : null;
+}
+
+/**
+* Check to see if lat is present
+*
+* @param {string} fieldName - fieldName to Check
+* @returns {boolean} present - whether or not lat / lon options are present
+*/
+
+function isLatitudeField(fieldName) {
+  return _$1.includes(['lat', 'latitude', 'latitude_deg', 'y'], fieldName.trim().toLowerCase());
+}
+
+/**
+* Check to see if lon is present
+*
+* @param {string} fieldName - fieldName to Check
+* @returns {boolean} present - whether or not lat / lon options are present
+*/
+
+function isLongitudeField(fieldName) {
+  return _$1.includes(['lon', 'longitude', 'longitude_deg', 'x'], fieldName.trim().toLowerCase());
+}
+
+/**
+* Check to see if geometry object is valid
+*
+* @param {object} geometry - built geometry object
+* @return {boolean} validGeom - whether or not geom is valid
+*/
+
+function validGeometry(geometry) {
+  return geometry.coordinates.length === 2 && geometry.coordinates[0] && geometry.coordinates[1] ? true : false;
+}
+
+/**
+* Covert fields into properties object
+* @param {array} fieldNames - array of field names
+* @param {array} feature - individual feature
+* @returns {object} properties - property object
+*/
+
+function constructProps(fieldNames, feature) {
+  var properties = _$1.reduce(fieldNames, function (tempProps, fieldName, key) {
+    tempProps[fieldName] = !isNaN(feature[key]) ? parseFloat(feature[key]) : feature[key];
+    return tempProps;
+  }, {});
+  return properties;
+}
+
+/**
+* Converts esri json to GeoJSON
+*
+* @param {object} esriJSON - The entire esri json response
+* @param {object} options - The fields object returned in esri json
+* @returns {object} geojson - geojson object
+*
+* */
+
+toGeoJSON.fromEsri = function (esriJSON, options) {
+  if (!options) options = {};
+  if (!options.fields) options.fields = esriJSON.fields;
+
+  var geojson = { type: 'FeatureCollection' };
+  var fields = convertFields(options.fields);
+
+  geojson.features = _$1.map(esriJSON.features, function (feature) {
+    return transformFeature(feature, fields);
+  });
+
+  return geojson;
+};
+
+/**
+* Converts a set of fields to have names that work well in JS
+*
+* @params {object} inFields - the original fields object from the esri json
+* @returns {object} fields - converted fields
+* @private
+* */
+
+function convertFields(infields) {
+  var fields = {};
+
+  _$1.each(infields, function (field) {
+    field.outName = convertFieldName(field.name);
+    fields[field.name] = field;
+  });
+  return fields;
+}
+
+/**
+* Converts a single field name to a legal javascript object key
+*
+* @params {string} name - the original field name
+* @returns {string} outName - a cleansed field name
+* @private
+* */
+
+function convertFieldName(name) {
+  var regex = new RegExp(/\.|\(|\)/g);
+  return name.replace(regex, '').replace(/\s/g, '_');
+}
+
+/**
+* Converts a single feature from esri json to geojson
+*
+* @param {object} feature - a single esri feature
+* @param {object} fields - the fields object from the service
+* @returns {object} feature - a geojson feature
+* @private
+* */
+
+function transformFeature(feature, fields) {
+  var attributes = {};
+
+  // first transform each of the features to the converted field name and transformed value
+  if (feature.attributes && Object.keys(feature.attributes)) {
+    _$1.each(Object.keys(feature.attributes), function (name) {
+      var attr = {};
+      attr[name] = feature.attributes[name];
+      try {
+        attributes[fields[name].outName] = convertAttribute(attr, fields[name]);
+      } catch (e) {
+        console.error('Field was missing from attribute');
+      }
+    });
+  }
+
+  return {
+    type: 'Feature',
+    properties: attributes,
+    geometry: parseGeometry(feature.geometry)
+  };
+}
+
+/**
+* Decodes an attributes CVD and standardizes any date fields
+*
+* @params {object} attribute - a single esri feature attribute
+* @params {object} field - the field metadata describing that attribute
+* @returns {object} outAttribute - the converted attribute
+* @private
+* */
+
+function convertAttribute(attribute, field) {
+  var inValue = attribute[field.name];
+  var value = void 0;
+
+  if (inValue === null) return inValue;
+
+  if (field.domain && field.domain.type === 'codedValue') {
+    value = cvd(inValue, field);
+  } else if (field.type === 'esriFieldTypeDate') {
+    try {
+      value = new Date(inValue).toISOString();
+    } catch (e) {
+      value = inValue;
+    }
+  } else {
+    value = inValue;
+  }
+  return value;
+}
+
+/**
+* Looks up a value from a coded domain
+*
+* @params {integer} value - The original field value
+* @params {object} field - metadata describing the attribute field
+* @returns {string/integerfloat} - The decoded field value
+* */
+
+function cvd(value, field) {
+  var domain = _$1.find(field.domain.codedValues, function (d) {
+    return value === d.code;
+  });
+  return domain ? domain.name : value;
+}
+
+/**
+* Convert an esri geometry to a geojson geometry
+*
+* @param {object} geometry - an esri geometry object
+* @return {object} geojson geometry
+* @private
+* */
+
+function parseGeometry(geometry) {
+  try {
+    var parsed = geometry ? arcgisToGeoJSON(geometry) : null;
+    if (parsed && parsed.type && parsed.coordinates) return parsed;else {
+      return null;
+    }
+  } catch (e) {
+    console.error(e);
+    return null;
+  }
+}
+
+var index$11 = toGeoJSON;
+
+// dictionary matching geo-properties to OpenStreetMap tags 1:1
+window.layerImports = {};
+
+// prevent re-downloading and re-adding the same feature
+window.knownObjectIds = {};
+
+// keeping track of added OSM entities
+window.importedEntities = [];
+
+function svgEsri(projection, context, dispatch$$1) {
     var detected = utilDetect();
 
-    if (detected.os === 'mac') {
-        return code;
-    }
+    function init() {
+        if (svgEsri.initialized) return;  // run once
 
-    if (detected.os === 'win') {
-        if (code === '⌘⇧Z') return 'Ctrl+Y';
-    }
+        svgEsri.geojson = {};
+        svgEsri.enabled = true;
 
-    var result = '',
-        replacements = {
-            '⌘': 'Ctrl',
-            '⇧': 'Shift',
-            '⌥': 'Alt',
-            '⌫': 'Backspace',
-            '⌦': 'Delete'
-        };
-
-    for (var i = 0; i < code.length; i++) {
-        if (code[i] in replacements) {
-            result += replacements[code[i]] + (i < code.length - 1 ? '+' : '');
-        } else {
-            result += code[i];
-        }
-    }
-
-    return result;
-}
-
-var relatedParent;
-
-
-function modeSelect(context, selectedIDs) {
-    var mode = {
-        id: 'select',
-        button: 'browse'
-    };
-
-    var keybinding = d3keybinding('select'),
-        timeout$$1 = null,
-        behaviors = [
-            behaviorCopy(context),
-            behaviorPaste(context),
-            behaviorBreathe(context),
-            behaviorHover(context),
-            behaviorSelect(context),
-            behaviorLasso(context),
-            modeDragNode$$1(context).selectedIDs(selectedIDs).behavior
-        ],
-        inspector,
-        radialMenu,
-        newFeature = false,
-        suppressMenu = false,
-        follow = false;
-
-
-    var wrap = context.container()
-        .select('.inspector-wrap');
-
-
-    function singular() {
-        if (selectedIDs.length === 1) {
-            return context.hasEntity(selectedIDs[0]);
-        }
-    }
-
-
-    // find the common parent ways for nextVertex, previousVertex
-    function commonParents() {
-        var graph = context.graph(),
-            commonParents = [];
-
-        for (var i = 0; i < selectedIDs.length; i++) {
-            var entity = context.hasEntity(selectedIDs[i]);
-            if (!entity || entity.geometry(graph) !== 'vertex') {
-                return [];  // selection includes some not vertexes
-            }
-
-            var currParents = lodash.map(graph.parentWays(entity), 'id');
-            if (!commonParents.length) {
-                commonParents = currParents;
-                continue;
-            }
-
-            commonParents = lodash.intersection(commonParents, currParents);
-            if (!commonParents.length) {
-                return [];
-            }
+        function over() {
+            event.stopPropagation();
+            event.preventDefault();
+            event.dataTransfer.dropEffect = 'copy';
         }
 
-        return commonParents;
-    }
-
-
-    function singularParent() {
-        var parents = commonParents();
-        if (!parents) {
-            relatedParent = null;
-            return null;
-        }
-
-        // relatedParent is used when we visit a vertex with multiple
-        // parents, and we want to remember which parent line we started on.
-
-        if (parents.length === 1) {
-            relatedParent = parents[0];  // remember this parent for later
-            return relatedParent;
-        }
-
-        if (parents.indexOf(relatedParent) !== -1) {
-            return relatedParent;   // prefer the previously seen parent
-        }
-
-        return parents[0];
-    }
-
-
-    function closeMenu() {
-        if (radialMenu) {
-            context.surface().call(radialMenu.close);
-        }
-    }
-
-
-    function positionMenu() {
-        if (suppressMenu || !radialMenu) { return; }
-
-        var entity = singular();
-        if (entity && context.geometry(entity.id) === 'relation') {
-            suppressMenu = true;
-        } else if (entity && entity.type === 'node') {
-            radialMenu.center(context.projection(entity.loc));
-        } else {
-            var point = context.mouse(),
-                viewport = geoExtent$$1(context.projection.clipExtent()).polygon();
-            if (geoPointInPolygon(point, viewport)) {
-                radialMenu.center(point);
-            } else {
-                suppressMenu = true;
-            }
-        }
-    }
-
-
-    function showMenu() {
-        closeMenu();
-        if (!suppressMenu && radialMenu) {
-            context.surface().call(radialMenu);
-        }
-    }
-
-
-    function toggleMenu() {
-        if (select('.radial-menu').empty()) {
-            showMenu();
-        } else {
-            closeMenu();
-        }
-    }
-
-
-    mode.selectedIDs = function() {
-        return selectedIDs;
-    };
-
-
-    mode.reselect = function() {
-        var surfaceNode = context.surface().node();
-        if (surfaceNode.focus) {   // FF doesn't support it
-            surfaceNode.focus();
-        }
-
-        positionMenu();
-        showMenu();
-    };
-
-
-    mode.newFeature = function(_) {
-        if (!arguments.length) return newFeature;
-        newFeature = _;
-        return mode;
-    };
-
-
-    mode.suppressMenu = function(_) {
-        if (!arguments.length) return suppressMenu;
-        suppressMenu = _;
-        return mode;
-    };
-
-
-    mode.follow = function(_) {
-        if (!arguments.length) return follow;
-        follow = _;
-        return mode;
-    };
-
-
-    mode.enter = function() {
-
-        function update() {
-            closeMenu();
-            if (lodash.some(selectedIDs, function(id) { return !context.hasEntity(id); })) {
-                // Exit mode if selected entity gets undone
-                context.enter(modeBrowse$$1(context));
-            }
-        }
-
-
-        function dblclick() {
-            var target = select(event.target),
-                datum = target.datum();
-
-            if (datum instanceof osmWay && !target.classed('fill')) {
-                var choice = geoChooseEdge(context.childNodes(datum), context.mouse(), context.projection),
-                    node = osmNode();
-
-                var prev = datum.nodes[choice.index - 1],
-                    next = datum.nodes[choice.index];
-
-                context.perform(
-                    actionAddMidpoint({loc: choice.loc, edge: [prev, next]}, node),
-                    t('operations.add.annotation.vertex')
-                );
-
-                event.preventDefault();
+        select('body')
+            .attr('dropzone', 'copy')
+            .on('drop.localesri', function() {
                 event.stopPropagation();
-            }
-        }
+                event.preventDefault();
+                if (!detected.filedrop) return;
+                drawEsri.files(event.dataTransfer.files);
+            })
+            .on('dragenter.localesri', over)
+            .on('dragexit.localesri', over)
+            .on('dragover.localesri', over);
+
+        svgEsri.initialized = true;
+    }
 
 
-        function selectElements(drawn) {
-            var surface = context.surface(),
-                entity = singular();
+    function drawEsri(selection$$1) {
+        var geojson = svgEsri.geojson,
+            enabled = svgEsri.enabled;
 
-            if (entity && context.geometry(entity.id) === 'relation') {
-                suppressMenu = true;
+        lodash.map(geojson.features || [], function(d) {
+            // don't reload the same objects over again
+            if (window.knownObjectIds[d.properties.OBJECTID]) {
                 return;
             }
-
-            surface.selectAll('.related')
-                .classed('related', false);
-
-            singularParent();
-            if (relatedParent) {
-                surface.selectAll(utilEntitySelector([relatedParent]))
-                    .classed('related', true);
-            }
-
-            var selection$$1 = context.surface()
-                .selectAll(utilEntityOrMemberSelector(selectedIDs, context.graph()));
-
-            if (selection$$1.empty()) {
-                // Return to browse mode if selected DOM elements have
-                // disappeared because the user moved them out of view..
-                var source = event && event.type === 'zoom' && event.sourceEvent;
-                if (drawn && source && (source.type === 'mousemove' || source.type === 'touchmove')) {
-                    context.enter(modeBrowse$$1(context));
+            window.knownObjectIds[d.properties.OBJECTID] = true;
+        
+            var props, nodes, ln, way, rel;
+            function makeEntity(loc_or_nodes) {
+                props = {
+                    tags: d.properties,
+                    visible: true
+                };
+            
+                // don't bring the service's OBJECTID any further
+                delete props.tags.OBJECTID;
+                
+                // allows this helper method to work on nodes and ways
+                if (loc_or_nodes.length && (typeof loc_or_nodes[0] === 'string')) {
+                    props.nodes = loc_or_nodes;
+                } else {
+                    props.loc = loc_or_nodes;
                 }
-            } else {
-                selection$$1
-                    .classed('selected', true);
+                return props;
             }
-        }
-
-
-        function esc() {
-            if (!context.inIntro()) {
-                context.enter(modeBrowse$$1(context));
+                
+            function makeMiniNodes(pts) {
+                // generates the nodes which make up a longer way
+                var nodes = [];
+                for (var p = 0; p < pts.length; p++) {
+                    props = makeEntity(pts[p]);
+                    props.tags = {};
+                    var node = new osmNode(props);
+                    node.approvedForEdit = false;
+                    context.perform(
+                        actionAddEntity(node),
+                        'adding node inside a way'
+                    );
+                    nodes.push(node.id);
+                }
+                return nodes;
             }
-        }
-
-
-        function firstVertex() {
-            event.preventDefault();
-            var parent = singularParent();
-            if (parent) {
-                var way = context.entity(parent);
-                context.enter(
-                    modeSelect(context, [way.first()]).follow(true)
+            
+            function mapLine(d, coords) {
+                nodes = makeMiniNodes(coords);
+                props = makeEntity(nodes);
+                way = new osmWay(props, nodes);
+                way.approvedForEdit = false;
+                context.perform(
+                    actionAddEntity(way),
+                    'adding way'
                 );
+                return way;
             }
-        }
+            
+            function mapPolygon(d, coords) {
+                d.properties.area = d.properties.area || 'yes';
+                if (coords.length > 1) {
+                    // donut hole polygons (e.g. building with courtyard) must be a relation
+                    // example data: Hartford, CT building footprints
+                    // TODO: rings within rings
 
-
-        function lastVertex() {
-            event.preventDefault();
-            var parent = singularParent();
-            if (parent) {
-                var way = context.entity(parent);
-                context.enter(
-                    modeSelect(context, [way.last()]).follow(true)
-                );
-            }
-        }
-
-
-        function previousVertex() {
-            event.preventDefault();
-            var parent = singularParent();
-            if (!parent) return;
-
-            var way = context.entity(parent),
-                length = way.nodes.length,
-                curr = way.nodes.indexOf(selectedIDs[0]),
-                index = -1;
-
-            if (curr > 0) {
-                index = curr - 1;
-            } else if (way.isClosed()) {
-                index = length - 2;
-            }
-
-            if (index !== -1) {
-                context.enter(
-                    modeSelect(context, [way.nodes[index]]).follow(true)
-                );
-            }
-        }
-
-
-        function nextVertex() {
-            event.preventDefault();
-            var parent = singularParent();
-            if (!parent) return;
-
-            var way = context.entity(parent),
-                length = way.nodes.length,
-                curr = way.nodes.indexOf(selectedIDs[0]),
-                index = -1;
-
-            if (curr < length - 1) {
-                index = curr + 1;
-            } else if (way.isClosed()) {
-                index = 0;
-            }
-
-            if (index !== -1) {
-                context.enter(
-                    modeSelect(context, [way.nodes[index]]).follow(true)
-                );
-            }
-        }
-
-
-        function nextParent() {
-            event.preventDefault();
-            var parents = lodash.uniq(commonParents());
-            if (!parents || parents.length < 2) return;
-
-            var index = parents.indexOf(relatedParent);
-            if (index < 0 || index > parents.length - 2) {
-                relatedParent = parents[0];
-            } else {
-                relatedParent = parents[index + 1];
-            }
-
-            var surface = context.surface();
-            surface.selectAll('.related')
-                .classed('related', false);
-
-            if (relatedParent) {
-                surface.selectAll(utilEntitySelector([relatedParent]))
-                    .classed('related', true);
-            }
-        }
-
-
-        behaviors.forEach(function(behavior) {
-            context.install(behavior);
-        });
-
-        var operations = lodash.without(values(Operations), operationDelete)
-                .map(function(o) { return o(selectedIDs, context); })
-                .filter(function(o) { return o.available(); });
-
-        operations.unshift(operationDelete(selectedIDs, context));
-
-        keybinding
-            .on(['[','pgup'], previousVertex)
-            .on([']', 'pgdown'], nextVertex)
-            .on([uiCmd('⌘['), 'home'], firstVertex)
-            .on([uiCmd('⌘]'), 'end'], lastVertex)
-            .on(['\\', 'pause'], nextParent)
-            .on('⎋', esc, true)
-            .on('space', toggleMenu);
-
-        operations.forEach(function(operation) {
-            operation.keys.forEach(function(key) {
-                keybinding.on(key, function() {
-                    if (!(context.inIntro() || operation.disabled())) {
-                        operation();
+                    // generate each ring                    
+                    var componentRings = [];
+                    for (var ring = 0; ring < coords.length; ring++) {
+                        // props.tags = {};
+                        way = mapLine(d, coords[ring]);
+                        componentRings.push({
+                            id: way.id,
+                            role: (ring === 0 ? 'outer' : 'inner')
+                        });
                     }
-                });
-            });
-        });
-
-        select(document)
-            .call(keybinding);
-
-        radialMenu = uiRadialMenu(context, operations);
-
-        context.ui().sidebar
-            .select(singular() ? singular().id : null, newFeature);
-
-        context.history()
-            .on('undone.select', update)
-            .on('redone.select', update);
-
-        context.map()
-            .on('move.select', closeMenu)
-            .on('drawn.select', selectElements);
-
-        selectElements();
-
-        var show = event && !suppressMenu;
-
-        if (show) {
-            positionMenu();
-        }
-
-        if (follow) {
-            var extent$$1 = geoExtent$$1(),
-                graph = context.graph();
-            selectedIDs.forEach(function(id) {
-                var entity = context.entity(id);
-                extent$$1._extend(entity.extent(graph));
-            });
-
-            var loc = extent$$1.center();
-            context.map().centerEase(loc);
-        }
-
-        timeout$$1 = window.setTimeout(function() {
-            if (show) {
-                showMenu();
+                    
+                    // generate a relation
+                    rel = new osmRelation({
+                        tags: {
+                            type: 'MultiPolygon'
+                        },
+                        members: componentRings
+                    });
+                    rel.approvedForEdit = false;
+                    context.perform(
+                        actionAddEntity(rel),
+                        'adding multiple-ring Polygon'
+                    );
+                    return rel;
+                } else {
+                    // polygon with one single ring
+                    way = mapLine(d, coords[0]);
+                    return way;
+                }
             }
+            
+            // importing different GeoJSON geometries
+            if (d.geometry.type === 'Point') {
+                props = makeEntity(d.geometry.coordinates);
+                var node = new osmNode(props);
+                node.approvedForEdit = false;
+                context.perform(
+                    actionAddEntity(node),
+                    'adding point'
+                );
+                window.importedEntities.push(node);
+                  
+            } else if (d.geometry.type === 'LineString') {
+                window.importedEntities.push(mapLine(d, d.geometry.coordinates));
+                    
+            } else if (d.geometry.type === 'MultiLineString') {
+                var lines = [];
+                for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
+                    lines.push({
+                        id: mapLine(d, d.geometry.coordinates[ln]).id,
+                        role: '' // todo roles: this empty string assumes the lines make up a route
+                    });
+                }
+                
+                // generate a relation
+                rel = new osmRelation({
+                    tags: {
+                        type: 'route' // todo multilinestring and multipolygon types
+                    },
+                    members: lines
+                });
+                rel.approvedForEdit = false;
+                context.perform(
+                    actionAddEntity(rel),
+                    'adding multiple Lines as a Relation'
+                );
+                window.importedEntities.push(rel);
+                
+                    
+            } else if (d.geometry.type === 'Polygon') {
+                window.importedEntities.push(mapPolygon(d, d.geometry.coordinates));
 
-            context.surface()
-                .on('dblclick.select', dblclick);
-        }, 200);
+            } else if (d.geometry.type === 'MultiPolygon') {
+                var polygons = [];
+                for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
+                    polygons.push({
+                        id: mapPolygon(d, d.geometry.coordinates[ln]).id,
+                        role: ''
+                    });
+                }
+                
+                // generate a relation
+                rel = new osmRelation({
+                    tags: {
+                        type: 'MultiPolygon'
+                    },
+                    members: polygons
+                });
+                rel.approvedForEdit = false;
+                context.perform(
+                    actionAddEntity(rel),
+                    'adding multiple Polygons as a Relation'
+                );
+                window.importedEntities.push(rel);
 
-        if (selectedIDs.length > 1) {
-            var entities = uiSelectionList(context, selectedIDs);
-            context.ui().sidebar.show(entities);
-        }
+            } else {
+                console.log('Did not recognize Geometry Type: ' + d.geometry.type);
+            }
+        });
+        
+        return this;
+    }
+
+    drawEsri.enabled = function(_) {
+        if (!arguments.length) return svgEsri.enabled;
+        svgEsri.enabled = _;
+        dispatch$$1.call('change');
+        return this;
     };
 
 
-    mode.exit = function() {
-        if (timeout$$1) window.clearTimeout(timeout$$1);
+    drawEsri.hasData = function() {
+        var geojson = svgEsri.geojson;
+        return (!(lodash.isEmpty(geojson) || lodash.isEmpty(geojson.features)));
+    };
 
-        if (inspector) wrap.call(inspector.close);
 
-        behaviors.forEach(function(behavior) {
-            context.uninstall(behavior);
+    drawEsri.geojson = function(gj) {
+        if (!arguments.length) return svgEsri.geojson;
+        if (lodash.isEmpty(gj) || lodash.isEmpty(gj.features)) return this;
+        svgEsri.geojson = gj;
+        dispatch$$1.call('change');
+        return this;
+    };
+
+    drawEsri.url = function(true_url, downloadMax) {
+        // add necessary URL parameters to the user's URL
+        var url = true_url;
+        if (url.indexOf('outSR') === -1) {
+            url += '&outSR=4326';
+        }
+        if (url.indexOf('&f=') === -1) {
+            url += '&f=json';
+        }
+        
+        // turn iD Editor bounds into a query
+        var bounds = context.map().trimmedExtent().bbox();
+        bounds = JSON.stringify({
+            xmin: bounds.minX.toFixed(6),
+            ymin: bounds.minY.toFixed(6),
+            xmax: bounds.maxX.toFixed(6),
+            ymax: bounds.maxY.toFixed(6),
+            spatialReference: {
+              wkid: 4326
+            }
+        });
+        if (this.lastBounds === bounds && this.lastProps === JSON.stringify(window.layerImports)) {
+            // unchanged bounds, unchanged import parameters, so unchanged data
+            return this;
+        }
+        
+        // data has changed - make a query
+        this.lastBounds = bounds;
+        this.lastProps = JSON.stringify(window.layerImports);
+
+        // make a spatial query within the user viewport (unless the user made their own spatial query)       
+        if (!downloadMax && (url.indexOf('spatialRel') === -1)) {
+            url += '&geometry=' + this.lastBounds;
+            url += '&geometryType=esriGeometryEnvelope';
+            url += '&spatialRel=esriSpatialRelIntersects';
+            url += '&inSR=4326';
+        }
+        
+        text(url, function(err, data) {
+            if (err) {
+                console.log('Esri service URL did not load');
+                console.error(err);
+            } else {
+                // convert EsriJSON text to GeoJSON object
+                data = JSON.parse(data);
+                var jsondl = index$11.fromEsri(data);
+                
+                // warn if went over server's maximum results count
+                if (data.exceededTransferLimit) {
+                    window.alert('Service returned first ' + data.features.length + ' results (maximum)');
+                }
+
+                selectAll('.esri-pane h3').text('Set import attributes');
+                var esriTable = selectAll('.esri-table');
+                
+                var convertedKeys = Object.keys(window.layerImports);              
+                if (!convertedKeys.length) {
+                    esriTable.html('<thead class="tag-row"><th>Esri Service</th><th>OSM tag</th></thead>');
+                
+                    if (jsondl.features.length) {
+                        // make a row for each GeoJSON property
+                        // existing name appears as a label
+                        // sample data appears as a text input placeholder
+                        // adding text over the sample data makes it into an OSM tag
+                        // TODO: target tags (addresses, roads, bike lanes)
+                        var samplefeature = jsondl.features[0];
+                        var keys$$1 = Object.keys(samplefeature.properties);
+                        
+                        // iterate through keys, adding a row describing each
+                        // user can set a new property name for each row
+                        var doKey = function(r) {
+                            if (r >= keys$$1.length) {
+                                return;
+                            }
+        
+                            // don't allow user to change how OBJECTID works
+                            if (keys$$1[r] === 'OBJECTID') {
+                                return doKey(r + 1);
+                            }
+        
+                            var row = esriTable.append('tr');
+                            row.append('td').text(keys$$1[r]); // .attr('class', 'key-wrap');
+                            var outfield = row.append('td').append('input');
+                            outfield.attr('type', 'text')
+                                .attr('name', keys$$1[r])
+                                .attr('placeholder', (window.layerImports[keys$$1[r]] || samplefeature.properties[keys$$1[r]]))
+                                .on('change', function() {
+                                    // properties with this.name renamed to this.value
+                                    window.layerImports[this.name] = this.value;
+                                });
+                            doKey(r + 1);
+                        };
+                        
+                        doKey(0);
+                    } else {
+                        console.log('no feature to build table from');
+                    }
+                } else {
+                    // if any import properties were added, make these mods and reject all other properties
+                    var processGeoFeature = function (selectfeature) {
+                        // keep the OBJECTID to make sure we don't download the same data multiple times
+                        var outprops = {
+                            OBJECTID: selectfeature.properties.OBJECTID
+                        };
+                        
+                        // convert the rest of the layer's properties
+                        for (var k = 0; k < convertedKeys.length; k++) {
+                            if (convertedKeys[k].indexOf('add_') === 0) {
+                                outprops[convertedKeys[k].substring(4)] = window.layerImports[convertedKeys[k]];
+                            } else {
+                                var kv = selectfeature.properties[convertedKeys[k]];
+                                if (kv) {
+                                    outprops[window.layerImports[convertedKeys[k]]] = kv;
+                                }
+                            }
+                        }
+                        selectfeature.properties = outprops;
+                        return selectfeature;
+                    };
+                    for (var ft = 0; ft < jsondl.features.length; ft++) {
+                        jsondl.features[ft] = processGeoFeature(jsondl.features[ft]);
+                    }
+                }
+                
+                // send the modified geo-features to the draw layer
+                drawEsri.geojson(jsondl);
+            }
         });
 
-        keybinding.off();
-        closeMenu();
-        radialMenu = undefined;
+/*        
+        // whenever map is moved, start 0.7s timer to re-download data from ArcGIS service
+        // unless we are downloading everything we can anyway
+        if (!downloadMax) {
+            context.map().on('move', function() {
+                if (this.timeout) {
+                    clearTimeout(this.timeout);
+                }
+                this.timeout = setTimeout(function() {
+                    this.url(true_url, downloadMax);
+                }.bind(this), 700);
+            }.bind(this));
+        }
+*/        
+        return this;
+    };
 
-        context.history()
-            .on('undone.select', null)
-            .on('redone.select', null);
+    drawEsri.fitZoom = function() {
+        // todo: implement
+        if (!this.hasData()) return this;
+        var geojson = svgEsri.geojson;
 
-        var surface = context.surface();
+        var map$$1 = context.map(),
+            viewport = map$$1.trimmedExtent().polygon(),
+            coords = lodash.reduce(geojson.features, function(coords, feature) {
+                var c = feature.geometry.coordinates;
+                return lodash.union(coords, feature.geometry.type === 'Point' ? [c] : c);
+            }, []);
 
-        surface
-            .on('dblclick.select', null);
+        if (!geoPolygonIntersectsPolygon(viewport, coords, true)) {
+            var extent$$1 = geoExtent$$1(bounds(geojson));
+            map$$1.centerZoom(extent$$1.center(), map$$1.trimmedExtentZoom(extent$$1));
+        }
 
-        surface
-            .selectAll('.selected')
-            .classed('selected', false);
-
-        surface
-            .selectAll('.related')
-            .classed('related', false);
-
-        context.map().on('drawn.select', null);
-        context.ui().sidebar.hide();
+        return this;
     };
 
 
-    return mode;
+    init();
+    return drawEsri;
 }
 
 //[4]   	NameStartChar	   ::=   	":" | [A-Z] | "_" | [a-z] | [#xC0-#xD6] | [#xD8-#xF6] | [#xF8-#x2FF] | [#x370-#x37D] | [#x37F-#x1FFF] | [#x200C-#x200D] | [#x2070-#x218F] | [#x2C00-#x2FEF] | [#x3001-#xD7FF] | [#xF900-#xFDCF] | [#xFDF0-#xFFFD] | [#x10000-#xEFFFF]
@@ -46343,1018 +43385,6 @@ var toGeoJSON = (function() {
 if (typeof module !== 'undefined') module.exports = toGeoJSON;
 });
 
-/*
- * Copyright 2015 Esri
- *
- * Licensed under the Apache License, Version 2.0 (the "License");
- * you may not use this file except in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the Liscense.
- */
-
-// checks if 2 x,y points are equal
-function pointsEqual (a, b) {
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] !== b[i]) {
-      return false;
-    }
-  }
-  return true;
-}
-
-// checks if the first and last points of a ring are equal and closes the ring
-function closeRing (coordinates) {
-  if (!pointsEqual(coordinates[0], coordinates[coordinates.length - 1])) {
-    coordinates.push(coordinates[0]);
-  }
-  return coordinates;
-}
-
-// determine if polygon ring coordinates are clockwise. clockwise signifies outer ring, counter-clockwise an inner ring
-// or hole. this logic was found at http://stackoverflow.com/questions/1165647/how-to-determine-if-a-list-of-polygon-
-// points-are-in-clockwise-order
-function ringIsClockwise (ringToTest) {
-  var total = 0;
-  var i = 0;
-  var rLength = ringToTest.length;
-  var pt1 = ringToTest[i];
-  var pt2;
-  for (i; i < rLength - 1; i++) {
-    pt2 = ringToTest[i + 1];
-    total += (pt2[0] - pt1[0]) * (pt2[1] + pt1[1]);
-    pt1 = pt2;
-  }
-  return (total >= 0);
-}
-
-// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L504-L519
-function vertexIntersectsVertex (a1, a2, b1, b2) {
-  var uaT = (b2[0] - b1[0]) * (a1[1] - b1[1]) - (b2[1] - b1[1]) * (a1[0] - b1[0]);
-  var ubT = (a2[0] - a1[0]) * (a1[1] - b1[1]) - (a2[1] - a1[1]) * (a1[0] - b1[0]);
-  var uB = (b2[1] - b1[1]) * (a2[0] - a1[0]) - (b2[0] - b1[0]) * (a2[1] - a1[1]);
-
-  if (uB !== 0) {
-    var ua = uaT / uB;
-    var ub = ubT / uB;
-
-    if (ua >= 0 && ua <= 1 && ub >= 0 && ub <= 1) {
-      return true;
-    }
-  }
-
-  return false;
-}
-
-// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L521-L531
-function arrayIntersectsArray (a, b) {
-  for (var i = 0; i < a.length - 1; i++) {
-    for (var j = 0; j < b.length - 1; j++) {
-      if (vertexIntersectsVertex(a[i], a[i + 1], b[j], b[j + 1])) {
-        return true;
-      }
-    }
-  }
-
-  return false;
-}
-
-// ported from terraformer.js https://github.com/Esri/Terraformer/blob/master/terraformer.js#L470-L480
-function coordinatesContainPoint (coordinates, point) {
-  var contains = false;
-  for (var i = -1, l = coordinates.length, j = l - 1; ++i < l; j = i) {
-    if (((coordinates[i][1] <= point[1] && point[1] < coordinates[j][1]) ||
-         (coordinates[j][1] <= point[1] && point[1] < coordinates[i][1])) &&
-        (point[0] < (coordinates[j][0] - coordinates[i][0]) * (point[1] - coordinates[i][1]) / (coordinates[j][1] - coordinates[i][1]) + coordinates[i][0])) {
-      contains = !contains;
-    }
-  }
-  return contains;
-}
-
-// ported from terraformer-arcgis-parser.js https://github.com/Esri/terraformer-arcgis-parser/blob/master/terraformer-arcgis-parser.js#L106-L113
-function coordinatesContainCoordinates (outer, inner) {
-  var intersects = arrayIntersectsArray(outer, inner);
-  var contains = coordinatesContainPoint(outer, inner[0]);
-  if (!intersects && contains) {
-    return true;
-  }
-  return false;
-}
-
-// do any polygons in this array contain any other polygons in this array?
-// used for checking for holes in arcgis rings
-// ported from terraformer-arcgis-parser.js https://github.com/Esri/terraformer-arcgis-parser/blob/master/terraformer-arcgis-parser.js#L117-L172
-function convertRingsToGeoJSON (rings) {
-  var outerRings = [];
-  var holes = [];
-  var x; // iterator
-  var outerRing; // current outer ring being evaluated
-  var hole; // current hole being evaluated
-
-  // for each ring
-  for (var r = 0; r < rings.length; r++) {
-    var ring = closeRing(rings[r].slice(0));
-    if (ring.length < 4) {
-      continue;
-    }
-    // is this ring an outer ring? is it clockwise?
-    if (ringIsClockwise(ring)) {
-      var polygon = [ ring ];
-      outerRings.push(polygon); // push to outer rings
-    } else {
-      holes.push(ring); // counterclockwise push to holes
-    }
-  }
-
-  var uncontainedHoles = [];
-
-  // while there are holes left...
-  while (holes.length) {
-    // pop a hole off out stack
-    hole = holes.pop();
-
-    // loop over all outer rings and see if they contain our hole.
-    var contained = false;
-    for (x = outerRings.length - 1; x >= 0; x--) {
-      outerRing = outerRings[x][0];
-      if (coordinatesContainCoordinates(outerRing, hole)) {
-        // the hole is contained push it into our polygon
-        outerRings[x].push(hole);
-        contained = true;
-        break;
-      }
-    }
-
-    // ring is not contained in any outer ring
-    // sometimes this happens https://github.com/Esri/esri-leaflet/issues/320
-    if (!contained) {
-      uncontainedHoles.push(hole);
-    }
-  }
-
-  // if we couldn't match any holes using contains we can try intersects...
-  while (uncontainedHoles.length) {
-    // pop a hole off out stack
-    hole = uncontainedHoles.pop();
-
-    // loop over all outer rings and see if any intersect our hole.
-    var intersects = false;
-
-    for (x = outerRings.length - 1; x >= 0; x--) {
-      outerRing = outerRings[x][0];
-      if (arrayIntersectsArray(outerRing, hole)) {
-        // the hole is contained push it into our polygon
-        outerRings[x].push(hole);
-        intersects = true;
-        break;
-      }
-    }
-
-    if (!intersects) {
-      outerRings.push([hole.reverse()]);
-    }
-  }
-
-  if (outerRings.length === 1) {
-    return {
-      type: 'Polygon',
-      coordinates: outerRings[0]
-    };
-  } else {
-    return {
-      type: 'MultiPolygon',
-      coordinates: outerRings
-    };
-  }
-}
-
-// This function ensures that rings are oriented in the right directions
-// outer rings are clockwise, holes are counterclockwise
-// used for converting GeoJSON Polygons to ArcGIS Polygons
-function orientRings (poly) {
-  var output = [];
-  var polygon = poly.slice(0);
-  var outerRing = closeRing(polygon.shift().slice(0));
-  if (outerRing.length >= 4) {
-    if (!ringIsClockwise(outerRing)) {
-      outerRing.reverse();
-    }
-
-    output.push(outerRing);
-
-    for (var i = 0; i < polygon.length; i++) {
-      var hole = closeRing(polygon[i].slice(0));
-      if (hole.length >= 4) {
-        if (ringIsClockwise(hole)) {
-          hole.reverse();
-        }
-        output.push(hole);
-      }
-    }
-  }
-
-  return output;
-}
-
-// This function flattens holes in multipolygons to one array of polygons
-// used for converting GeoJSON Polygons to ArcGIS Polygons
-function flattenMultiPolygonRings (rings) {
-  var output = [];
-  for (var i = 0; i < rings.length; i++) {
-    var polygon = orientRings(rings[i]);
-    for (var x = polygon.length - 1; x >= 0; x--) {
-      var ring = polygon[x].slice(0);
-      output.push(ring);
-    }
-  }
-  return output;
-}
-
-// shallow object clone for feature properties and attributes
-// from http://jsperf.com/cloning-an-object/2
-function shallowClone (obj) {
-  var target = {};
-  for (var i in obj) {
-    if (obj.hasOwnProperty(i)) {
-      target[i] = obj[i];
-    }
-  }
-  return target;
-}
-
-function arcgisToGeoJSON$1 (arcgis, idAttribute) {
-  var geojson = {};
-
-  if (typeof arcgis.x === 'number' && typeof arcgis.y === 'number') {
-    geojson.type = 'Point';
-    geojson.coordinates = [arcgis.x, arcgis.y];
-  }
-
-  if (arcgis.points) {
-    geojson.type = 'MultiPoint';
-    geojson.coordinates = arcgis.points.slice(0);
-  }
-
-  if (arcgis.paths) {
-    if (arcgis.paths.length === 1) {
-      geojson.type = 'LineString';
-      geojson.coordinates = arcgis.paths[0].slice(0);
-    } else {
-      geojson.type = 'MultiLineString';
-      geojson.coordinates = arcgis.paths.slice(0);
-    }
-  }
-
-  if (arcgis.rings) {
-    geojson = convertRingsToGeoJSON(arcgis.rings.slice(0));
-  }
-
-  if (arcgis.geometry || arcgis.attributes) {
-    geojson.type = 'Feature';
-    geojson.geometry = (arcgis.geometry) ? arcgisToGeoJSON$1(arcgis.geometry) : null;
-    geojson.properties = (arcgis.attributes) ? shallowClone(arcgis.attributes) : null;
-    if (arcgis.attributes) {
-      geojson.id = arcgis.attributes[idAttribute] || arcgis.attributes.OBJECTID || arcgis.attributes.FID;
-    }
-  }
-
-  return geojson;
-}
-
-function geojsonToArcGIS (geojson, idAttribute) {
-  idAttribute = idAttribute || 'OBJECTID';
-  var spatialReference = { wkid: 4326 };
-  var result = {};
-  var i;
-
-  switch (geojson.type) {
-    case 'Point':
-      result.x = geojson.coordinates[0];
-      result.y = geojson.coordinates[1];
-      result.spatialReference = spatialReference;
-      break;
-    case 'MultiPoint':
-      result.points = geojson.coordinates.slice(0);
-      result.spatialReference = spatialReference;
-      break;
-    case 'LineString':
-      result.paths = [geojson.coordinates.slice(0)];
-      result.spatialReference = spatialReference;
-      break;
-    case 'MultiLineString':
-      result.paths = geojson.coordinates.slice(0);
-      result.spatialReference = spatialReference;
-      break;
-    case 'Polygon':
-      result.rings = orientRings(geojson.coordinates.slice(0));
-      result.spatialReference = spatialReference;
-      break;
-    case 'MultiPolygon':
-      result.rings = flattenMultiPolygonRings(geojson.coordinates.slice(0));
-      result.spatialReference = spatialReference;
-      break;
-    case 'Feature':
-      if (geojson.geometry) {
-        result.geometry = geojsonToArcGIS(geojson.geometry, idAttribute);
-      }
-      result.attributes = (geojson.properties) ? shallowClone(geojson.properties) : {};
-      if (geojson.id) {
-        result.attributes[idAttribute] = geojson.id;
-      }
-      break;
-    case 'FeatureCollection':
-      result = [];
-      for (i = 0; i < geojson.features.length; i++) {
-        result.push(geojsonToArcGIS(geojson.features[i], idAttribute));
-      }
-      break;
-    case 'GeometryCollection':
-      result = [];
-      for (i = 0; i < geojson.geometries.length; i++) {
-        result.push(geojsonToArcGIS(geojson.geometries[i], idAttribute));
-      }
-      break;
-  }
-
-  return result;
-}
-
-
-var index$12 = Object.freeze({
-	arcgisToGeoJSON: arcgisToGeoJSON$1,
-	geojsonToArcGIS: geojsonToArcGIS
-});
-
-var require$$1$1 = ( index$12 && index$12['default'] ) || index$12;
-
-var arcgisToGeoJSON = require$$1$1.arcgisToGeoJSON;
-var _$1 = lodash;
-var toGeoJSON$1 = {};
-
-/**
-* Converts csv to geojson
-*
-* @param {array} csv - csv file parsed using https://www.npmjs.com/package/csv
-* @returns {object} geojson - geojson object
-* */
-
-toGeoJSON$1.fromCSV = function (csv) {
-  var geojson = { type: 'FeatureCollection' };
-  var fieldNames = csvFieldNames(csv[0]);
-  var features = csv.slice(1);
-  geojson.features = _$1.map(features, function (feat, key) {
-    var feature = { type: 'Feature', id: key };
-    feature.properties = constructProps(fieldNames, feat);
-    feature.properties.OBJECTID = key;
-    feature.geometry = convertCSVGeom(fieldNames, feat);
-    return feature;
-  });
-  return geojson;
-};
-
-/**
-* Parse array of field names and sanitize them
-*
-* @param {array} inFields - array of field names
-* @returns {array} fieldNames - array of sanitized field Names
-*/
-
-function csvFieldNames(inFields) {
-  var fieldNames = _$1.map(inFields, function (field) {
-    return convertFieldName(field);
-  });
-  return fieldNames;
-}
-
-/**
-* Convert CSV geom to geojson
-*
-* @param {array} fieldNames - array of field names
-* @param {array} feature - individual feature
-* @returns {object} geometry - geometry object
-*/
-
-function convertCSVGeom(columns, row) {
-  var geometry = _$1.reduce(columns, function (tempGeom, colName, i) {
-    if (isLongitudeField(colName)) tempGeom.coordinates[0] = parseFloat(row[i]);else if (isLatitudeField(colName)) tempGeom.coordinates[1] = parseFloat(row[i]);
-    return tempGeom;
-  }, { type: 'Point', coordinates: [null, null] });
-  return validGeometry(geometry) ? geometry : null;
-}
-
-/**
-* Check to see if lat is present
-*
-* @param {string} fieldName - fieldName to Check
-* @returns {boolean} present - whether or not lat / lon options are present
-*/
-
-function isLatitudeField(fieldName) {
-  return _$1.includes(['lat', 'latitude', 'latitude_deg', 'y'], fieldName.trim().toLowerCase());
-}
-
-/**
-* Check to see if lon is present
-*
-* @param {string} fieldName - fieldName to Check
-* @returns {boolean} present - whether or not lat / lon options are present
-*/
-
-function isLongitudeField(fieldName) {
-  return _$1.includes(['lon', 'longitude', 'longitude_deg', 'x'], fieldName.trim().toLowerCase());
-}
-
-/**
-* Check to see if geometry object is valid
-*
-* @param {object} geometry - built geometry object
-* @return {boolean} validGeom - whether or not geom is valid
-*/
-
-function validGeometry(geometry) {
-  return geometry.coordinates.length === 2 && geometry.coordinates[0] && geometry.coordinates[1] ? true : false;
-}
-
-/**
-* Covert fields into properties object
-* @param {array} fieldNames - array of field names
-* @param {array} feature - individual feature
-* @returns {object} properties - property object
-*/
-
-function constructProps(fieldNames, feature) {
-  var properties = _$1.reduce(fieldNames, function (tempProps, fieldName, key) {
-    tempProps[fieldName] = !isNaN(feature[key]) ? parseFloat(feature[key]) : feature[key];
-    return tempProps;
-  }, {});
-  return properties;
-}
-
-/**
-* Converts esri json to GeoJSON
-*
-* @param {object} esriJSON - The entire esri json response
-* @param {object} options - The fields object returned in esri json
-* @returns {object} geojson - geojson object
-*
-* */
-
-toGeoJSON$1.fromEsri = function (esriJSON, options) {
-  if (!options) options = {};
-  if (!options.fields) options.fields = esriJSON.fields;
-
-  var geojson = { type: 'FeatureCollection' };
-  var fields = convertFields(options.fields);
-
-  geojson.features = _$1.map(esriJSON.features, function (feature) {
-    return transformFeature(feature, fields);
-  });
-
-  return geojson;
-};
-
-/**
-* Converts a set of fields to have names that work well in JS
-*
-* @params {object} inFields - the original fields object from the esri json
-* @returns {object} fields - converted fields
-* @private
-* */
-
-function convertFields(infields) {
-  var fields = {};
-
-  _$1.each(infields, function (field) {
-    field.outName = convertFieldName(field.name);
-    fields[field.name] = field;
-  });
-  return fields;
-}
-
-/**
-* Converts a single field name to a legal javascript object key
-*
-* @params {string} name - the original field name
-* @returns {string} outName - a cleansed field name
-* @private
-* */
-
-function convertFieldName(name) {
-  var regex = new RegExp(/\.|\(|\)/g);
-  return name.replace(regex, '').replace(/\s/g, '_');
-}
-
-/**
-* Converts a single feature from esri json to geojson
-*
-* @param {object} feature - a single esri feature
-* @param {object} fields - the fields object from the service
-* @returns {object} feature - a geojson feature
-* @private
-* */
-
-function transformFeature(feature, fields) {
-  var attributes = {};
-
-  // first transform each of the features to the converted field name and transformed value
-  if (feature.attributes && Object.keys(feature.attributes)) {
-    _$1.each(Object.keys(feature.attributes), function (name) {
-      var attr = {};
-      attr[name] = feature.attributes[name];
-      try {
-        attributes[fields[name].outName] = convertAttribute(attr, fields[name]);
-      } catch (e) {
-        console.error('Field was missing from attribute');
-      }
-    });
-  }
-
-  return {
-    type: 'Feature',
-    properties: attributes,
-    geometry: parseGeometry(feature.geometry)
-  };
-}
-
-/**
-* Decodes an attributes CVD and standardizes any date fields
-*
-* @params {object} attribute - a single esri feature attribute
-* @params {object} field - the field metadata describing that attribute
-* @returns {object} outAttribute - the converted attribute
-* @private
-* */
-
-function convertAttribute(attribute, field) {
-  var inValue = attribute[field.name];
-  var value = void 0;
-
-  if (inValue === null) return inValue;
-
-  if (field.domain && field.domain.type === 'codedValue') {
-    value = cvd(inValue, field);
-  } else if (field.type === 'esriFieldTypeDate') {
-    try {
-      value = new Date(inValue).toISOString();
-    } catch (e) {
-      value = inValue;
-    }
-  } else {
-    value = inValue;
-  }
-  return value;
-}
-
-/**
-* Looks up a value from a coded domain
-*
-* @params {integer} value - The original field value
-* @params {object} field - metadata describing the attribute field
-* @returns {string/integerfloat} - The decoded field value
-* */
-
-function cvd(value, field) {
-  var domain = _$1.find(field.domain.codedValues, function (d) {
-    return value === d.code;
-  });
-  return domain ? domain.name : value;
-}
-
-/**
-* Convert an esri geometry to a geojson geometry
-*
-* @param {object} geometry - an esri geometry object
-* @return {object} geojson geometry
-* @private
-* */
-
-function parseGeometry(geometry) {
-  try {
-    var parsed = geometry ? arcgisToGeoJSON(geometry) : null;
-    if (parsed && parsed.type && parsed.coordinates) return parsed;else {
-      return null;
-    }
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
-}
-
-var index$11 = toGeoJSON$1;
-
-// dictionary matching geo-properties to OpenStreetMap tags 1:1
-window.layerImports = {};
-
-// prevent re-downloading and re-adding the same feature
-window.knownObjectIds = {};
-
-// keeping track of added OSM entities
-window.importedEntities = [];
-
-function svgEsri(projection, context, dispatch$$1) {
-    var showLabels = true,
-        detected = utilDetect(),
-        layer;
-
-
-    function init() {
-        if (svgEsri.initialized) return;  // run once
-
-        svgEsri.geojson = {};
-        svgEsri.enabled = true;
-
-        function over() {
-            event.stopPropagation();
-            event.preventDefault();
-            event.dataTransfer.dropEffect = 'copy';
-        }
-
-        select('body')
-            .attr('dropzone', 'copy')
-            .on('drop.localesri', function() {
-                event.stopPropagation();
-                event.preventDefault();
-                if (!detected.filedrop) return;
-                drawEsri.files(event.dataTransfer.files);
-            })
-            .on('dragenter.localesri', over)
-            .on('dragexit.localesri', over)
-            .on('dragover.localesri', over);
-
-        svgEsri.initialized = true;
-    }
-
-
-    function drawEsri(selection$$1) {
-        var geojson = svgEsri.geojson,
-            enabled = svgEsri.enabled;
-
-        lodash.map(geojson.features || [], function(d) {
-            // don't reload the same objects over again
-            if (window.knownObjectIds[d.properties.OBJECTID]) {
-                return;
-            }
-            window.knownObjectIds[d.properties.OBJECTID] = true;
-        
-            var props, nodes, ln, way, rel;
-            function makeEntity(loc_or_nodes) {
-                props = {
-                    tags: d.properties,
-                    visible: true
-                };
-            
-                // don't bring the service's OBJECTID any further
-                delete props.tags.OBJECTID;
-                
-                // allows this helper method to work on nodes and ways
-                if (loc_or_nodes.length && (typeof loc_or_nodes[0] === 'string')) {
-                    props.nodes = loc_or_nodes;
-                } else {
-                    props.loc = loc_or_nodes;
-                }
-                return props;
-            }
-                
-            function makeMiniNodes(pts) {
-                // generates the nodes which make up a longer way
-                var nodes = [];
-                for (var p = 0; p < pts.length; p++) {
-                    props = makeEntity(pts[p]);
-                    props.tags = {};
-                    var node = new osmNode(props);
-                    node.approvedForEdit = false;
-                    context.perform(
-                        actionAddEntity(node),
-                        'adding node inside a way'
-                    );
-                    nodes.push(node.id);
-                }
-                return nodes;
-            }
-            
-            function mapLine(d, coords) {
-                nodes = makeMiniNodes(coords);
-                props = makeEntity(nodes);
-                way = new osmWay(props, nodes);
-                way.approvedForEdit = false;
-                context.perform(
-                    actionAddEntity(way),
-                    'adding way'
-                );
-                return way;
-            }
-            
-            function mapPolygon(d, coords) {
-                d.properties.area = d.properties.area || 'yes';
-                if (coords.length > 1) {
-                    // donut hole polygons (e.g. building with courtyard) must be a relation
-                    // example data: Hartford, CT building footprints
-                    // TODO: rings within rings
-
-                    // generate each ring                    
-                    var componentRings = [];
-                    for (var ring = 0; ring < coords.length; ring++) {
-                        // props.tags = {};
-                        way = mapLine(d, coords[ring]);
-                        componentRings.push({
-                            id: way.id,
-                            role: (ring === 0 ? 'outer' : 'inner')
-                        });
-                    }
-                    
-                    // generate a relation
-                    rel = new osmRelation({
-                        tags: {
-                            type: 'MultiPolygon'
-                        },
-                        members: componentRings
-                    });
-                    rel.approvedForEdit = false;
-                    context.perform(
-                        actionAddEntity(rel),
-                        'adding multiple-ring Polygon'
-                    );
-                    return rel;
-                } else {
-                    // polygon with one single ring
-                    way = mapLine(d, coords[0]);
-                    return way;
-                }
-            }
-            
-            // importing different GeoJSON geometries
-            if (d.geometry.type === 'Point') {
-                props = makeEntity(d.geometry.coordinates);
-                var node = new osmNode(props);
-                node.approvedForEdit = false;
-                context.perform(
-                    actionAddEntity(node),
-                    'adding point'
-                );
-                window.importedEntities.push(node);
-                  
-            } else if (d.geometry.type === 'LineString') {
-                window.importedEntities.push(mapLine(d, d.geometry.coordinates));
-                    
-            } else if (d.geometry.type === 'MultiLineString') {
-                var lines = [];
-                for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
-                    lines.push({
-                        id: mapLine(d, d.geometry.coordinates[ln]).id,
-                        role: '' // todo roles: this empty string assumes the lines make up a route
-                    });
-                }
-                
-                // generate a relation
-                rel = new osmRelation({
-                    tags: {
-                        type: 'route' // todo multilinestring and multipolygon types
-                    },
-                    members: lines
-                });
-                rel.approvedForEdit = false;
-                context.perform(
-                    actionAddEntity(rel),
-                    'adding multiple Lines as a Relation'
-                );
-                window.importedEntities.push(rel);
-                
-                    
-            } else if (d.geometry.type === 'Polygon') {
-                window.importedEntities.push(mapPolygon(d, d.geometry.coordinates));
-
-            } else if (d.geometry.type === 'MultiPolygon') {
-                var polygons = [];
-                for (ln = 0; ln < d.geometry.coordinates.length; ln++) {
-                    polygons.push({
-                        id: mapPolygon(d, d.geometry.coordinates[ln]).id,
-                        role: ''
-                    });
-                }
-                
-                // generate a relation
-                rel = new osmRelation({
-                    tags: {
-                        type: 'MultiPolygon'
-                    },
-                    members: polygons
-                });
-                rel.approvedForEdit = false;
-                context.perform(
-                    actionAddEntity(rel),
-                    'adding multiple Polygons as a Relation'
-                );
-                window.importedEntities.push(rel);
-
-            } else {
-                console.log('Did not recognize Geometry Type: ' + d.geometry.type);
-            }
-        });
-        
-        return this;
-    }
-    
-    // iterate through keys, adding a row describing each
-    // user can set a new property name for each row
-    function doKey(r, keys$$1, samplefeature, esriTable) {
-        if (r >= keys$$1.length) {
-            return;
-        }
-        
-        // don't allow user to change how OBJECTID works
-        if (keys$$1[r] === 'OBJECTID') {
-            return doKey(r + 1, keys$$1, samplefeature, esriTable);
-        }
-        
-        var row = esriTable.append('tr');
-          //.attr('class', 'tag-row');
-        row.append('td').text(keys$$1[r]); // .attr('class', 'key-wrap');
-        var outfield = row.append('td').append('input');
-        outfield.attr('type', 'text')
-            //.attr('class', 'input-wrap-position')
-            .attr('name', keys$$1[r])
-            .attr('placeholder', (window.layerImports[keys$$1[r]] || samplefeature.properties[keys$$1[r]]))
-            .on('change', function() {
-                // properties with this.name renamed to this.value
-                window.layerImports[this.name] = this.value;
-            });
-        doKey(r + 1, keys$$1, samplefeature, esriTable);
-    }
-
-    drawEsri.enabled = function(_) {
-        if (!arguments.length) return svgEsri.enabled;
-        svgEsri.enabled = _;
-        dispatch$$1.call('change');
-        return this;
-    };
-
-
-    drawEsri.hasData = function() {
-        var geojson = svgEsri.geojson;
-        return (!(lodash.isEmpty(geojson) || lodash.isEmpty(geojson.features)));
-    };
-
-
-    drawEsri.geojson = function(gj) {
-        if (!arguments.length) return svgEsri.geojson;
-        if (lodash.isEmpty(gj) || lodash.isEmpty(gj.features)) return this;
-        svgEsri.geojson = gj;
-        dispatch$$1.call('change');
-        return this;
-    };
-
-    drawEsri.url = function(true_url, downloadMax) {
-        // add necessary URL parameters to the user's URL
-        var url = true_url;
-        if (url.indexOf('outSR') === -1) {
-            url += '&outSR=4326';
-        }
-        if (url.indexOf('&f=') === -1) {
-            url += '&f=json';
-        }
-        
-        // turn iD Editor bounds into a query
-        var bounds = context.map().trimmedExtent().bbox();
-        bounds = JSON.stringify({
-            xmin: bounds.minX.toFixed(6),
-            ymin: bounds.minY.toFixed(6),
-            xmax: bounds.maxX.toFixed(6),
-            ymax: bounds.maxY.toFixed(6),
-            spatialReference: {
-              wkid: 4326
-            }
-        });
-        if (this.lastBounds === bounds && this.lastProps === JSON.stringify(window.layerImports)) {
-            // unchanged bounds, unchanged import parameters, so unchanged data
-            return this;
-        }
-        
-        // data has changed - make a query
-        this.lastBounds = bounds;
-        this.lastProps = JSON.stringify(window.layerImports);
-
-        // make a spatial query within the user viewport (unless the user made their own spatial query)       
-        if (!downloadMax && (url.indexOf('spatialRel') === -1)) {
-            url += '&geometry=' + this.lastBounds;
-            url += '&geometryType=esriGeometryEnvelope';
-            url += '&spatialRel=esriSpatialRelIntersects';
-            url += '&inSR=4326';
-        }
-        
-        text(url, function(err, data) {
-            if (err) {
-                console.log('Esri service URL did not load');
-                console.error(err);
-            } else {
-                // convert EsriJSON text to GeoJSON object
-                data = JSON.parse(data);
-                var jsondl = index$11.fromEsri(data);
-                
-                // warn if went over server's maximum results count
-                if (data.exceededTransferLimit) {
-                    window.alert('Service returned first ' + data.features.length + ' results (maximum)');
-                }
-
-                selectAll('.esri-pane h3').text('Set import attributes');
-                var esriTable = selectAll('.esri-table');
-                
-                var convertedKeys = Object.keys(window.layerImports);              
-                if (!convertedKeys.length) {
-                    esriTable.html('<thead class="tag-row"><th>Esri Service</th><th>OSM tag</th></thead>');
-                
-                    if (jsondl.features.length) {
-                        // make a row for each GeoJSON property
-                        // existing name appears as a label
-                        // sample data appears as a text input placeholder
-                        // adding text over the sample data makes it into an OSM tag
-                        // TODO: target tags (addresses, roads, bike lanes)
-                        var samplefeature = jsondl.features[0];
-                        var keys$$1 = Object.keys(samplefeature.properties);
-                        doKey(0, keys$$1, samplefeature, esriTable);
-                    } else {
-                        console.log('no feature to build table from');
-                    }
-                } else {
-                    // if any import properties were added, make these mods and reject all other properties
-                    var processGeoFeature = function (selectfeature) {
-                        // keep the OBJECTID to make sure we don't download the same data multiple times
-                        var outprops = {
-                            OBJECTID: selectfeature.properties.OBJECTID
-                        };
-                        
-                        // convert the rest of the layer's properties
-                        for (var k = 0; k < convertedKeys.length; k++) {
-                            if (convertedKeys[k].indexOf('add_') === 0) {
-                                outprops[convertedKeys[k].substring(4)] = window.layerImports[convertedKeys[k]];
-                            } else {
-                                var kv = selectfeature.properties[convertedKeys[k]];
-                                if (kv) {
-                                    outprops[window.layerImports[convertedKeys[k]]] = kv;
-                                }
-                            }
-                        }
-                        selectfeature.properties = outprops;
-                        return selectfeature;
-                    };
-                    for (var ft = 0; ft < jsondl.features.length; ft++) {
-                        jsondl.features[ft] = processGeoFeature(jsondl.features[ft]);
-                    }
-                }
-                
-                // send the modified geo-features to the draw layer
-                drawEsri.geojson(jsondl);
-            }
-        });
-
-/*        
-        // whenever map is moved, start 0.7s timer to re-download data from ArcGIS service
-        // unless we are downloading everything we can anyway
-        if (!downloadMax) {
-            context.map().on('move', function() {
-                if (this.timeout) {
-                    clearTimeout(this.timeout);
-                }
-                this.timeout = setTimeout(function() {
-                    this.url(true_url, downloadMax);
-                }.bind(this), 700);
-            }.bind(this));
-        }
-*/        
-        return this;
-    };
-
-    drawEsri.fitZoom = function() {
-        // todo: implement
-        if (!this.hasData()) return this;
-        var geojson = svgEsri.geojson;
-
-        var map$$1 = context.map(),
-            viewport = map$$1.trimmedExtent().polygon(),
-            coords = lodash.reduce(geojson.features, function(coords, feature) {
-                var c = feature.geometry.coordinates;
-                return lodash.union(coords, feature.geometry.type === 'Point' ? [c] : c);
-            }, []);
-
-        if (!geoPolygonIntersectsPolygon(viewport, coords, true)) {
-            var extent$$1 = geoExtent$$1(bounds(geojson));
-            map$$1.centerZoom(extent$$1.center(), map$$1.trimmedExtentZoom(extent$$1));
-        }
-
-        return this;
-    };
-
-
-    init();
-    return drawEsri;
-}
-
 function svgGpx(projection, context, dispatch$$1) {
     var showLabels = true,
         detected = utilDetect(),
@@ -48151,6 +44181,57 @@ function svgLabels(projection, context) {
 
 
     return drawLabels;
+}
+
+// Copies a variable number of methods from source to target.
+function utilRebind(target, source) {
+    var i = 1, n = arguments.length, method;
+    while (++i < n) {
+        target[method = arguments[i]] = d3_rebind(target, source, source[method]);
+    }
+    return target;
+}
+
+// Method is assumed to be a standard D3 getter-setter:
+// If passed with no arguments, gets the value.
+// If passed with arguments, sets the value and returns the target.
+function d3_rebind(target, source, method) {
+    return function() {
+        var value = method.apply(source, arguments);
+        return value === source ? target : value;
+    };
+}
+
+function refresh(selection, node) {
+    var cr = node.getBoundingClientRect();
+    var prop = [cr.width, cr.height];
+    selection.property('__dimensions__', prop);
+    return prop;
+}
+
+function utilGetDimensions(selection, force) {
+    if (!selection || selection.empty()) {
+        return [0, 0];
+    }
+    var node = selection.node(),
+        cached = selection.property('__dimensions__');
+    return (!cached || force) ? refresh(selection, node) : cached;
+}
+
+
+function utilSetDimensions(selection, dimensions) {
+    if (!selection || selection.empty()) {
+        return selection;
+    }
+    var node = selection.node();
+    if (dimensions === null) {
+        refresh(selection, node);
+        return selection;
+    }
+    return selection
+        .property('__dimensions__', [dimensions[0], dimensions[1]])
+        .attr('width', dimensions[0])
+        .attr('height', dimensions[1]);
 }
 
 function svgPointTransform(projection) {
@@ -51075,6 +47156,149 @@ var index$13 = function(o) {
     return oauth;
 };
 
+var JXON = new (function () {
+  var
+    sValueProp = 'keyValue', sAttributesProp = 'keyAttributes', sAttrPref = '@', /* you can customize these values */
+    aCache = [], rIsNull = /^\s*$/, rIsBool = /^(?:true|false)$/i;
+
+  function parseText (sValue) {
+    if (rIsNull.test(sValue)) { return null; }
+    if (rIsBool.test(sValue)) { return sValue.toLowerCase() === 'true'; }
+    if (isFinite(sValue)) { return parseFloat(sValue); }
+    if (isFinite(Date.parse(sValue))) { return new Date(sValue); }
+    return sValue;
+  }
+
+  function EmptyTree () { }
+  EmptyTree.prototype.toString = function () { return 'null'; };
+  EmptyTree.prototype.valueOf = function () { return null; };
+
+  function objectify (vValue) {
+    return vValue === null ? new EmptyTree() : vValue instanceof Object ? vValue : new vValue.constructor(vValue);
+  }
+
+  function createObjTree (oParentNode, nVerb, bFreeze, bNesteAttr) {
+    var
+      nLevelStart = aCache.length, bChildren = oParentNode.hasChildNodes(),
+      bAttributes = oParentNode.hasAttributes(), bHighVerb = Boolean(nVerb & 2);
+
+    var
+      sProp, vContent, nLength = 0, sCollectedTxt = '',
+      vResult = bHighVerb ? {} : /* put here the default value for empty nodes: */ true;
+
+    if (bChildren) {
+      for (var oNode, nItem = 0; nItem < oParentNode.childNodes.length; nItem++) {
+        oNode = oParentNode.childNodes.item(nItem);
+        if (oNode.nodeType === 4) { sCollectedTxt += oNode.nodeValue; } /* nodeType is 'CDATASection' (4) */
+        else if (oNode.nodeType === 3) { sCollectedTxt += oNode.nodeValue.trim(); } /* nodeType is 'Text' (3) */
+        else if (oNode.nodeType === 1 && !oNode.prefix) { aCache.push(oNode); } /* nodeType is 'Element' (1) */
+      }
+    }
+
+    var nLevelEnd = aCache.length, vBuiltVal = parseText(sCollectedTxt);
+
+    if (!bHighVerb && (bChildren || bAttributes)) { vResult = nVerb === 0 ? objectify(vBuiltVal) : {}; }
+
+    for (var nElId = nLevelStart; nElId < nLevelEnd; nElId++) {
+      sProp = aCache[nElId].nodeName.toLowerCase();
+      vContent = createObjTree(aCache[nElId], nVerb, bFreeze, bNesteAttr);
+      if (vResult.hasOwnProperty(sProp)) {
+        if (vResult[sProp].constructor !== Array) { vResult[sProp] = [vResult[sProp]]; }
+        vResult[sProp].push(vContent);
+      } else {
+        vResult[sProp] = vContent;
+        nLength++;
+      }
+    }
+
+    if (bAttributes) {
+      var
+        nAttrLen = oParentNode.attributes.length,
+        sAPrefix = bNesteAttr ? '' : sAttrPref, oAttrParent = bNesteAttr ? {} : vResult;
+
+      for (var oAttrib, nAttrib = 0; nAttrib < nAttrLen; nLength++, nAttrib++) {
+        oAttrib = oParentNode.attributes.item(nAttrib);
+        oAttrParent[sAPrefix + oAttrib.name.toLowerCase()] = parseText(oAttrib.value.trim());
+      }
+
+      if (bNesteAttr) {
+        if (bFreeze) { Object.freeze(oAttrParent); }
+        vResult[sAttributesProp] = oAttrParent;
+        nLength -= nAttrLen - 1;
+      }
+    }
+
+    if (nVerb === 3 || (nVerb === 2 || nVerb === 1 && nLength > 0) && sCollectedTxt) {
+      vResult[sValueProp] = vBuiltVal;
+    } else if (!bHighVerb && nLength === 0 && sCollectedTxt) {
+      vResult = vBuiltVal;
+    }
+
+    if (bFreeze && (bHighVerb || nLength > 0)) { Object.freeze(vResult); }
+
+    aCache.length = nLevelStart;
+
+    return vResult;
+  }
+
+  function loadObjTree (oXMLDoc, oParentEl, oParentObj) {
+    var vValue, oChild;
+
+    if (oParentObj instanceof String || oParentObj instanceof Number || oParentObj instanceof Boolean) {
+      oParentEl.appendChild(oXMLDoc.createTextNode(oParentObj.toString())); /* verbosity level is 0 */
+    } else if (oParentObj.constructor === Date) {
+      oParentEl.appendChild(oXMLDoc.createTextNode(oParentObj.toGMTString()));    
+    }
+
+    for (var sName in oParentObj) {
+      vValue = oParentObj[sName];
+      if (isFinite(sName) || vValue instanceof Function) { continue; } /* verbosity level is 0 */
+      if (sName === sValueProp) {
+        if (vValue !== null && vValue !== true) { oParentEl.appendChild(oXMLDoc.createTextNode(vValue.constructor === Date ? vValue.toGMTString() : String(vValue))); }
+      } else if (sName === sAttributesProp) { /* verbosity level is 3 */
+        for (var sAttrib in vValue) { oParentEl.setAttribute(sAttrib, vValue[sAttrib]); }
+      } else if (sName.charAt(0) === sAttrPref) {
+        oParentEl.setAttribute(sName.slice(1), vValue);
+      } else if (vValue.constructor === Array) {
+        for (var nItem = 0; nItem < vValue.length; nItem++) {
+          oChild = oXMLDoc.createElement(sName);
+          loadObjTree(oXMLDoc, oChild, vValue[nItem]);
+          oParentEl.appendChild(oChild);
+        }
+      } else {
+        oChild = oXMLDoc.createElement(sName);
+        if (vValue instanceof Object) {
+          loadObjTree(oXMLDoc, oChild, vValue);
+        } else if (vValue !== null && vValue !== true) {
+          oChild.appendChild(oXMLDoc.createTextNode(vValue.toString()));
+        }
+        oParentEl.appendChild(oChild);
+     }
+   }
+  }
+
+  this.build = function (oXMLParent, nVerbosity /* optional */, bFreeze /* optional */, bNesteAttributes /* optional */) {
+    var _nVerb = arguments.length > 1 && typeof nVerbosity === 'number' ? nVerbosity & 3 : /* put here the default verbosity level: */ 1;
+    return createObjTree(oXMLParent, _nVerb, bFreeze || false, arguments.length > 3 ? bNesteAttributes : _nVerb === 3);    
+  };
+
+  this.unbuild = function (oObjTree) {    
+    var oNewDoc = document.implementation.createDocument('', '', null);
+    loadObjTree(oNewDoc, oNewDoc, oObjTree);
+    return oNewDoc;
+  };
+
+  this.stringify = function (oObjTree) {
+    return (new XMLSerializer()).serializeToString(JXON.unbuild(oObjTree));
+  };
+})();
+
+// var myObject = JXON.build(doc);
+// we got our javascript object! try: alert(JSON.stringify(myObject));
+
+// var newDoc = JXON.unbuild(myObject);
+// we got our Document instance! try: alert((new XMLSerializer()).serializeToString(newDoc));
+
 var dispatch$3 = dispatch('authLoading', 'authDone', 'change', 'loading', 'loaded');
 var useHttps = window.location.protocol === 'https:';
 var protocol = useHttps ? 'https:' : 'http:';
@@ -53330,6 +49554,3778 @@ function svgVertices$$1(projection, context) {
     };
 
     return drawVertices;
+}
+
+function behaviorEdit(context) {
+
+    function edit() {
+        context.map()
+            .minzoom(context.minEditableZoom());
+    }
+
+
+    edit.off = function() {
+        context.map()
+            .minzoom(0);
+    };
+
+
+    return edit;
+}
+
+/*
+   The hover behavior adds the `.hover` class on mouseover to all elements to which
+   the identical datum is bound, and removes it on mouseout.
+
+   The :hover pseudo-class is insufficient for iD's purposes because a datum's visual
+   representation may consist of several elements scattered throughout the DOM hierarchy.
+   Only one of these elements can have the :hover pseudo-class, but all of them will
+   have the .hover class.
+ */
+function behaviorHover() {
+    var dispatch$$1 = dispatch('hover'),
+        selection$$1 = select(null),
+        buttonDown,
+        altDisables,
+        target;
+
+
+    function keydown() {
+        if (altDisables && event.keyCode === d3keybinding.modifierCodes.alt) {
+            dispatch$$1.call('hover', this, null);
+            selection$$1.selectAll('.hover')
+                .classed('hover-suppressed', true)
+                .classed('hover', false);
+        }
+    }
+
+
+    function keyup() {
+        if (altDisables && event.keyCode === d3keybinding.modifierCodes.alt) {
+            dispatch$$1.call('hover', this, target ? target.id : null);
+            selection$$1.selectAll('.hover-suppressed')
+                .classed('hover-suppressed', false)
+                .classed('hover', true);
+        }
+    }
+
+
+    var hover = function(__) {
+        selection$$1 = __;
+
+        selection$$1
+            .on('mouseover.hover', mouseover)
+            .on('mouseout.hover', mouseout)
+            .on('mousedown.hover', mousedown);
+
+        select(window)
+            .on('keydown.hover', keydown)
+            .on('keyup.hover', keyup);
+
+
+        function mouseover() {
+            if (buttonDown) return;
+            var target = event.target;
+            enter(target ? target.__data__ : null);
+        }
+
+
+        function mouseout() {
+            if (buttonDown) return;
+            var target = event.relatedTarget;
+            enter(target ? target.__data__ : null);
+        }
+
+
+        function mousedown() {
+            buttonDown = true;
+            select(window)
+                .on('mouseup.hover', mouseup, true);
+        }
+
+
+        function mouseup() {
+            buttonDown = false;
+            select(window)
+                .on('mouseup.hover', null, true);
+        }
+
+
+        function enter(d) {
+            if (d === target) return;
+            target = d;
+
+            selection$$1.selectAll('.hover')
+                .classed('hover', false);
+            selection$$1.selectAll('.hover-suppressed')
+                .classed('hover-suppressed', false);
+
+            if (target instanceof osmEntity$$1) {
+                var selector$$1 = '.' + target.id;
+
+                if (target.type === 'relation') {
+                    target.members.forEach(function(member) {
+                        selector$$1 += ', .' + member.id;
+                    });
+                }
+
+                var suppressed = altDisables && event && event.altKey;
+
+                selection$$1.selectAll(selector$$1)
+                    .classed(suppressed ? 'hover-suppressed' : 'hover', true);
+
+                dispatch$$1.call('hover', this, target.id);
+            } else {
+                dispatch$$1.call('hover', this, null);
+            }
+        }
+
+    };
+
+
+    hover.off = function(selection$$1) {
+        selection$$1.selectAll('.hover')
+            .classed('hover', false);
+        selection$$1.selectAll('.hover-suppressed')
+            .classed('hover-suppressed', false);
+
+        selection$$1
+            .on('mouseover.hover', null)
+            .on('mouseout.hover', null)
+            .on('mousedown.hover', null);
+
+        select(window)
+            .on('keydown.hover', null)
+            .on('keyup.hover', null);
+    };
+
+
+    hover.altDisables = function(_) {
+        if (!arguments.length) return altDisables;
+        altDisables = _;
+        return hover;
+    };
+
+
+    return utilRebind(hover, dispatch$$1, 'on');
+}
+
+function behaviorTail() {
+    var text$$1,
+        container,
+        xmargin = 25,
+        tooltipSize = [0, 0],
+        selectionSize = [0, 0];
+
+
+    function tail(selection$$1) {
+        if (!text$$1) return;
+
+        select(window)
+            .on('resize.tail', function() { selectionSize = utilGetDimensions(selection$$1); });
+
+        container = select(document.body)
+            .append('div')
+            .style('display', 'none')
+            .attr('class', 'tail tooltip-inner');
+
+        container.append('div')
+            .text(text$$1);
+
+        selection$$1
+            .on('mousemove.tail', mousemove)
+            .on('mouseenter.tail', mouseenter)
+            .on('mouseleave.tail', mouseleave);
+
+        container
+            .on('mousemove.tail', mousemove);
+
+        tooltipSize = utilGetDimensions(container);
+        selectionSize = utilGetDimensions(selection$$1);
+
+
+        function show() {
+            container.style('display', 'block');
+            tooltipSize = utilGetDimensions(container);
+        }
+
+
+        function mousemove() {
+            if (container.style('display') === 'none') show();
+            var xoffset = ((event.clientX + tooltipSize[0] + xmargin) > selectionSize[0]) ?
+                -tooltipSize[0] - xmargin : xmargin;
+            container.classed('left', xoffset > 0);
+            utilSetTransform(container, event.clientX + xoffset, event.clientY);
+        }
+
+
+        function mouseleave() {
+            if (event.relatedTarget !== container.node()) {
+                container.style('display', 'none');
+            }
+        }
+
+
+        function mouseenter() {
+            if (event.relatedTarget !== container.node()) {
+                show();
+            }
+        }
+    }
+
+
+    tail.off = function(selection$$1) {
+        if (!text$$1) return;
+
+        container
+            .on('mousemove.tail', null)
+            .remove();
+
+        selection$$1
+            .on('mousemove.tail', null)
+            .on('mouseenter.tail', null)
+            .on('mouseleave.tail', null);
+
+        select(window)
+            .on('resize.tail', null);
+    };
+
+
+    tail.text = function(_) {
+        if (!arguments.length) return text$$1;
+        text$$1 = _;
+        return tail;
+    };
+
+
+    return tail;
+}
+
+behaviorDraw.usedTails = {};
+behaviorDraw.disableSpace = false;
+behaviorDraw.lastSpace = null;
+
+
+function behaviorDraw(context) {
+    var dispatch$$1 = dispatch('move', 'click', 'clickWay',
+            'clickNode', 'undo', 'cancel', 'finish'),
+        keybinding = d3keybinding('draw'),
+        hover = behaviorHover(context)
+            .altDisables(true)
+            .on('hover', context.ui().sidebar.hover),
+        tail = behaviorTail(),
+        edit = behaviorEdit(context),
+        closeTolerance = 4,
+        tolerance = 12,
+        mouseLeave = false,
+        lastMouse = null,
+        cached = behaviorDraw;
+
+
+    function datum() {
+        if (event.altKey) return {};
+
+        if (event.type === 'keydown') {
+            return (lastMouse && lastMouse.target.__data__) || {};
+        } else {
+            return event.target.__data__ || {};
+        }
+    }
+
+
+    function mousedown() {
+
+        function point() {
+            var p = context.container().node();
+            return touchId !== null ? touches(p).filter(function(p) {
+                return p.identifier === touchId;
+            })[0] : mouse(p);
+        }
+
+        var element = select(this),
+            touchId = event.touches ? event.changedTouches[0].identifier : null,
+            t1 = +new Date(),
+            p1 = point();
+
+        element.on('mousemove.draw', null);
+
+        select(window).on('mouseup.draw', function() {
+            var t2 = +new Date(),
+                p2 = point(),
+                dist = geoEuclideanDistance(p1, p2);
+
+            element.on('mousemove.draw', mousemove);
+            select(window).on('mouseup.draw', null);
+
+            if (dist < closeTolerance || (dist < tolerance && (t2 - t1) < 500)) {
+                // Prevent a quick second click
+                select(window).on('click.draw-block', function() {
+                    event.stopPropagation();
+                }, true);
+
+                context.map().dblclickEnable(false);
+
+                window.setTimeout(function() {
+                    context.map().dblclickEnable(true);
+                    select(window).on('click.draw-block', null);
+                }, 500);
+
+                click();
+            }
+        }, true);
+    }
+
+
+    function mousemove() {
+        lastMouse = event;
+        dispatch$$1.call('move', this, datum());
+    }
+
+
+    function mouseenter() {
+        mouseLeave = false;
+    }
+
+
+    function mouseleave() {
+        mouseLeave = true;
+    }
+
+
+    function click() {
+        var d = datum();
+        if (d.type === 'way') {
+            var dims = context.map().dimensions(),
+                mouse$$1 = context.mouse(),
+                pad = 5,
+                trySnap = mouse$$1[0] > pad && mouse$$1[0] < dims[0] - pad &&
+                    mouse$$1[1] > pad && mouse$$1[1] < dims[1] - pad;
+
+            if (trySnap) {
+                var choice = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection),
+                    edge = [d.nodes[choice.index - 1], d.nodes[choice.index]];
+                dispatch$$1.call('clickWay', this, choice.loc, edge);
+            } else {
+                dispatch$$1.call('click', this, context.map().mouseCoordinates());
+            }
+
+        } else if (d.type === 'node') {
+            dispatch$$1.call('clickNode', this, d);
+
+        } else {
+            dispatch$$1.call('click', this, context.map().mouseCoordinates());
+        }
+    }
+
+
+    function space() {
+        var currSpace = context.mouse();
+        if (cached.disableSpace && cached.lastSpace) {
+            var dist = geoEuclideanDistance(cached.lastSpace, currSpace);
+            if (dist > tolerance) {
+                cached.disableSpace = false;
+            }
+        }
+
+        if (cached.disableSpace || mouseLeave || !lastMouse) return;
+
+        // user must move mouse or release space bar to allow another click
+        cached.lastSpace = currSpace;
+        cached.disableSpace = true;
+
+        select(window).on('keyup.space-block', function() {
+            cached.disableSpace = false;
+            select(window).on('keyup.space-block', null);
+        });
+
+        event.preventDefault();
+        click();
+    }
+
+
+    function backspace() {
+        event.preventDefault();
+        dispatch$$1.call('undo');
+    }
+
+
+    function del() {
+        event.preventDefault();
+        dispatch$$1.call('cancel');
+    }
+
+
+    function ret() {
+        event.preventDefault();
+        dispatch$$1.call('finish');
+    }
+
+
+    function draw(selection$$1) {
+        context.install(hover);
+        context.install(edit);
+
+        if (!context.inIntro() && !cached.usedTails[tail.text()]) {
+            context.install(tail);
+        }
+
+        keybinding
+            .on('⌫', backspace)
+            .on('⌦', del)
+            .on('⎋', ret)
+            .on('↩', ret)
+            .on('space', space)
+            .on('⌥space', space);
+
+        selection$$1
+            .on('mouseenter.draw', mouseenter)
+            .on('mouseleave.draw', mouseleave)
+            .on('mousedown.draw', mousedown)
+            .on('mousemove.draw', mousemove);
+
+        select(document)
+            .call(keybinding);
+
+        return draw;
+    }
+
+
+    draw.off = function(selection$$1) {
+        context.ui().sidebar.hover.cancel();
+        context.uninstall(hover);
+        context.uninstall(edit);
+
+        if (!context.inIntro() && !cached.usedTails[tail.text()]) {
+            context.uninstall(tail);
+            cached.usedTails[tail.text()] = true;
+        }
+
+        selection$$1
+            .on('mouseenter.draw', null)
+            .on('mouseleave.draw', null)
+            .on('mousedown.draw', null)
+            .on('mousemove.draw', null);
+
+        select(window)
+            .on('mouseup.draw', null);
+            // note: keyup.space-block, click.draw-block should remain
+
+        select(document)
+            .call(keybinding.off);
+    };
+
+
+    draw.tail = function(_) {
+        tail.text(_);
+        return draw;
+    };
+
+
+    return utilRebind(draw, dispatch$$1, 'on');
+}
+
+function behaviorAddWay(context) {
+    var dispatch$$1 = dispatch('start', 'startFromWay', 'startFromNode'),
+        draw = behaviorDraw(context);
+
+    var addWay = function(surface) {
+        draw.on('click', function() { dispatch$$1.apply('start', this, arguments); })
+            .on('clickWay', function() { dispatch$$1.apply('startFromWay', this, arguments); })
+            .on('clickNode', function() { dispatch$$1.apply('startFromNode', this, arguments); })
+            .on('cancel', addWay.cancel)
+            .on('finish', addWay.cancel);
+
+        context.map()
+            .dblclickEnable(false);
+
+        surface.call(draw);
+    };
+
+
+    addWay.off = function(surface) {
+        surface.call(draw.off);
+    };
+
+
+    addWay.cancel = function() {
+        window.setTimeout(function() {
+            context.map().dblclickEnable(true);
+        }, 1000);
+
+        context.enter(modeBrowse$$1(context));
+    };
+
+
+    addWay.tail = function(text$$1) {
+        draw.tail(text$$1);
+        return addWay;
+    };
+
+
+    return utilRebind(addWay, dispatch$$1, 'on');
+}
+
+function behaviorBreathe() {
+    var duration = 800,
+        steps = 4,
+        selector$$1 = '.selected.shadow, .selected .shadow',
+        selected = select(null),
+        classed = '',
+        params = {},
+        done = false,
+        timer$$1;
+
+
+    // This is a workaround for a bug in rollup v0.36
+    // https://github.com/rollup/rollup/issues/984
+    // The symbol for this default export is not used anywhere, but it
+    // needs to be called in order to be included in the bundle.
+    var t = transition();
+
+
+    function ratchetyInterpolator(a, b, steps, units) {
+        a = parseFloat(a);
+        b = parseFloat(b);
+        var sample = quantize$1()
+            .domain([0, 1])
+            .range(quantize(interpolateNumber(a, b), steps));
+
+        return function(t) {
+            return String(sample(t)) + (units || '');
+        };
+    }
+
+
+    function reset(selection$$1) {
+        selection$$1
+            .style('stroke-opacity', null)
+            .style('stroke-width', null)
+            .style('fill-opacity', null)
+            .style('r', null);
+    }
+
+
+    function setAnimationParams(transition$$1, fromTo) {
+        var toFrom = (fromTo === 'from' ? 'to' : 'from');
+
+        transition$$1
+            .styleTween('stroke-opacity', function(d) {
+                return ratchetyInterpolator(
+                    params[d.id][toFrom].opacity,
+                    params[d.id][fromTo].opacity,
+                    steps
+                );
+            })
+            .styleTween('stroke-width', function(d) {
+                return ratchetyInterpolator(
+                    params[d.id][toFrom].width,
+                    params[d.id][fromTo].width,
+                    steps,
+                    'px'
+                );
+            })
+            .styleTween('fill-opacity', function(d) {
+                return ratchetyInterpolator(
+                    params[d.id][toFrom].opacity,
+                    params[d.id][fromTo].opacity,
+                    steps
+                );
+            })
+            .styleTween('r', function(d) {
+                return ratchetyInterpolator(
+                    params[d.id][toFrom].width,
+                    params[d.id][fromTo].width,
+                    steps,
+                    'px'
+                );
+            });
+    }
+
+
+    function calcAnimationParams(selection$$1) {
+        selection$$1
+            .call(reset)
+            .each(function(d) {
+                var s = select(this),
+                    tag = s.node().tagName,
+                    p = {'from': {}, 'to': {}},
+                    opacity, width;
+
+                // determine base opacity and width
+                if (tag === 'circle') {
+                    opacity = parseFloat(s.style('fill-opacity') || 0.5);
+                    width = parseFloat(s.style('r') || 15.5);
+                } else {
+                    opacity = parseFloat(s.style('stroke-opacity') || 0.7);
+                    width = parseFloat(s.style('stroke-width') || 10);
+                }
+
+                // calculate from/to interpolation params..
+                p.tag = tag;
+                p.from.opacity = opacity * 0.6;
+                p.to.opacity = opacity * 1.25;
+                p.from.width = width * 0.9;
+                p.to.width = width * (tag === 'circle' ? 1.5 : 1.25);
+                params[d.id] = p;
+            });
+    }
+
+
+    function run(surface, fromTo) {
+        var toFrom = (fromTo === 'from' ? 'to' : 'from'),
+            currSelected = surface.selectAll(selector$$1),
+            currClassed = surface.attr('class');
+
+        if (done || currSelected.empty()) {
+            selected.call(reset);
+            return;
+        }
+
+        if (!lodash.isEqual(currSelected.data(), selected.data()) || currClassed !== classed) {
+            selected.call(reset);
+            classed = currClassed;
+            selected = currSelected.call(calcAnimationParams);
+        }
+
+        selected
+            .transition()
+            .duration(duration)
+            .call(setAnimationParams, fromTo)
+            .on('end', function() {
+                surface.call(run, toFrom);
+            });
+    }
+
+
+    var breathe = function(surface) {
+        done = false;
+        timer$$1 = timer(function() {
+            // wait for elements to actually become selected
+            if (surface.selectAll(selector$$1).empty()) {
+                return false;
+            }
+
+            surface.call(run, 'from');
+            timer$$1.stop();
+            return true;
+        }, 20);
+    };
+
+
+    breathe.off = function() {
+        done = true;
+        timer$$1.stop();
+        selected
+            .interrupt()
+            .call(reset);
+    };
+
+
+    return breathe;
+}
+
+function behaviorCopy(context) {
+    var keybinding = d3keybinding('copy');
+
+
+    function groupEntities(ids, graph) {
+        var entities = ids.map(function (id) { return graph.entity(id); });
+        return lodash.extend({relation: [], way: [], node: []},
+            lodash.groupBy(entities, function(entity) { return entity.type; }));
+    }
+
+
+    function getDescendants(id, graph, descendants) {
+        var entity = graph.entity(id),
+            i, children;
+
+        descendants = descendants || {};
+
+        if (entity.type === 'relation') {
+            children = lodash.map(entity.members, 'id');
+        } else if (entity.type === 'way') {
+            children = entity.nodes;
+        } else {
+            children = [];
+        }
+
+        for (i = 0; i < children.length; i++) {
+            if (!descendants[children[i]]) {
+                descendants[children[i]] = true;
+                descendants = getDescendants(children[i], graph, descendants);
+            }
+        }
+
+        return descendants;
+    }
+
+
+    function doCopy() {
+        event.preventDefault();
+        if (context.inIntro()) return;
+
+        var graph = context.graph(),
+            selected = groupEntities(context.selectedIDs(), graph),
+            canCopy = [],
+            skip = {},
+            i, entity;
+
+        for (i = 0; i < selected.relation.length; i++) {
+            entity = selected.relation[i];
+            if (!skip[entity.id] && entity.isComplete(graph)) {
+                canCopy.push(entity.id);
+                skip = getDescendants(entity.id, graph, skip);
+            }
+        }
+        for (i = 0; i < selected.way.length; i++) {
+            entity = selected.way[i];
+            if (!skip[entity.id]) {
+                canCopy.push(entity.id);
+                skip = getDescendants(entity.id, graph, skip);
+            }
+        }
+        for (i = 0; i < selected.node.length; i++) {
+            entity = selected.node[i];
+            if (!skip[entity.id]) {
+                canCopy.push(entity.id);
+            }
+        }
+
+        context.copyIDs(canCopy);
+    }
+
+
+    function copy() {
+        keybinding.on(uiCmd('⌘C'), doCopy);
+        select(document).call(keybinding);
+        return copy;
+    }
+
+
+    copy.off = function() {
+        select(document).call(keybinding.off);
+    };
+
+
+    return copy;
+}
+
+/*
+    `behaviorDrag` is like `d3.behavior.drag`, with the following differences:
+
+    * The `origin` function is expected to return an [x, y] tuple rather than an
+      {x, y} object.
+    * The events are `start`, `move`, and `end`.
+      (https://github.com/mbostock/d3/issues/563)
+    * The `start` event is not dispatched until the first cursor movement occurs.
+      (https://github.com/mbostock/d3/pull/368)
+    * The `move` event has a `point` and `delta` [x, y] tuple properties rather
+      than `x`, `y`, `dx`, and `dy` properties.
+    * The `end` event is not dispatched if no movement occurs.
+    * An `off` function is available that unbinds the drag's internal event handlers.
+    * Delegation is supported via the `delegate` function.
+
+ */
+function behaviorDrag() {
+    var event$$1 = dispatch('start', 'move', 'end'),
+        origin = null,
+        selector$$1 = '',
+        filter = null,
+        event_, target, surface;
+
+
+    function d3_eventCancel() {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+
+    function eventOf(thiz, argumentz) {
+        return function(e1) {
+            e1.target = drag$$1;
+            customEvent(e1, event$$1.apply, event$$1, [e1.type, thiz, argumentz]);
+        };
+    }
+
+    var d3_event_userSelectProperty = utilPrefixCSSProperty('UserSelect'),
+        d3_event_userSelectSuppress = d3_event_userSelectProperty ?
+            function () {
+                var selection$$1 = selection(),
+                    select$$1 = selection$$1.style(d3_event_userSelectProperty);
+                selection$$1.style(d3_event_userSelectProperty, 'none');
+                return function () {
+                    selection$$1.style(d3_event_userSelectProperty, select$$1);
+                };
+            } :
+            function (type) {
+                var w = select(window).on('selectstart.' + type, d3_eventCancel);
+                return function () {
+                    w.on('selectstart.' + type, null);
+                };
+            };
+
+
+    function mousedown() {
+        target = this;
+        event_ = eventOf(target, arguments);
+
+        var eventTarget = event.target,
+            touchId = event.touches ? event.changedTouches[0].identifier : null,
+            offset,
+            origin_ = point(),
+            started = false,
+            selectEnable = d3_event_userSelectSuppress(touchId !== null ? 'drag-' + touchId : 'drag');
+
+        var w = select(window)
+            .on(touchId !== null ? 'touchmove.drag-' + touchId : 'mousemove.drag', dragmove)
+            .on(touchId !== null ? 'touchend.drag-' + touchId : 'mouseup.drag', dragend, true);
+
+        if (origin) {
+            offset = origin.apply(target, arguments);
+            offset = [offset[0] - origin_[0], offset[1] - origin_[1]];
+        } else {
+            offset = [0, 0];
+        }
+
+        if (touchId === null) event.stopPropagation();
+
+        function point() {
+            var p = target.parentNode || surface;
+            return touchId !== null ? touches(p).filter(function(p) {
+                return p.identifier === touchId;
+            })[0] : mouse(p);
+        }
+
+
+        function dragmove() {
+            var p = point(),
+                dx = p[0] - origin_[0],
+                dy = p[1] - origin_[1];
+
+            if (dx === 0 && dy === 0)
+                return;
+
+            if (!started) {
+                started = true;
+                event_({
+                    type: 'start'
+                });
+            }
+
+            origin_ = p;
+            d3_eventCancel();
+
+            event_({
+                type: 'move',
+                point: [p[0] + offset[0],  p[1] + offset[1]],
+                delta: [dx, dy]
+            });
+        }
+
+
+        function dragend() {
+            if (started) {
+                event_({
+                    type: 'end'
+                });
+
+                d3_eventCancel();
+                if (event.target === eventTarget) w.on('click.drag', click, true);
+            }
+
+            w.on(touchId !== null ? 'touchmove.drag-' + touchId : 'mousemove.drag', null)
+                .on(touchId !== null ? 'touchend.drag-' + touchId : 'mouseup.drag', null);
+            selectEnable();
+        }
+
+
+        function click() {
+            d3_eventCancel();
+            w.on('click.drag', null);
+        }
+    }
+
+
+    function drag$$1(selection$$1) {
+        var matchesSelector = utilPrefixDOMProperty('matchesSelector'),
+            delegate = mousedown;
+
+        if (selector$$1) {
+            delegate = function() {
+                var root = this,
+                    target = event.target;
+                for (; target && target !== root; target = target.parentNode) {
+                    if (target[matchesSelector](selector$$1) &&
+                            (!filter || filter(target.__data__))) {
+                        return mousedown.call(target, target.__data__);
+                    }
+                }
+            };
+        }
+
+        selection$$1.on('mousedown.drag' + selector$$1, delegate)
+            .on('touchstart.drag' + selector$$1, delegate);
+    }
+
+
+    drag$$1.off = function(selection$$1) {
+        selection$$1.on('mousedown.drag' + selector$$1, null)
+            .on('touchstart.drag' + selector$$1, null);
+    };
+
+
+    drag$$1.delegate = function(_) {
+        if (!arguments.length) return selector$$1;
+        selector$$1 = _;
+        return drag$$1;
+    };
+
+
+    drag$$1.filter = function(_) {
+        if (!arguments.length) return origin;
+        filter = _;
+        return drag$$1;
+    };
+
+
+    drag$$1.origin = function (_) {
+        if (!arguments.length) return origin;
+        origin = _;
+        return drag$$1;
+    };
+
+
+    drag$$1.cancel = function() {
+        select(window)
+            .on('mousemove.drag', null)
+            .on('mouseup.drag', null);
+        return drag$$1;
+    };
+
+
+    drag$$1.target = function() {
+        if (!arguments.length) return target;
+        target = arguments[0];
+        event_ = eventOf(target, Array.prototype.slice.call(arguments, 1));
+        return drag$$1;
+    };
+
+
+    drag$$1.surface = function() {
+        if (!arguments.length) return surface;
+        surface = arguments[0];
+        return drag$$1;
+    };
+
+
+    return utilRebind(drag$$1, event$$1, 'on');
+}
+
+function behaviorDrawWay(context, wayId, index, mode, baseGraph) {
+
+    var way = context.entity(wayId),
+        isArea = context.geometry(wayId) === 'area',
+        finished = false,
+        annotation = t((way.isDegenerate() ?
+            'operations.start.annotation.' :
+            'operations.continue.annotation.') + context.geometry(wayId)),
+        draw = behaviorDraw(context);
+
+    var startIndex = typeof index === 'undefined' ? way.nodes.length - 1 : 0,
+        start = osmNode({loc: context.graph().entity(way.nodes[startIndex]).loc}),
+        end = osmNode({loc: context.map().mouseCoordinates()}),
+        segment = osmWay({
+            nodes: typeof index === 'undefined' ? [start.id, end.id] : [end.id, start.id],
+            tags: lodash.clone(way.tags)
+        });
+
+    var fn = context[way.isDegenerate() ? 'replace' : 'perform'];
+    if (isArea) {
+        fn(actionAddEntity(end),
+            actionAddVertex(wayId, end.id, index)
+        );
+    } else {
+        fn(actionAddEntity(start),
+            actionAddEntity(end),
+            actionAddEntity(segment)
+        );
+    }
+
+
+    function move(datum) {
+        var loc;
+
+        if (datum.type === 'node' && datum.id !== end.id) {
+            loc = datum.loc;
+
+        } else if (datum.type === 'way' && datum.id !== segment.id) {
+            var dims = context.map().dimensions(),
+                mouse = context.mouse(),
+                pad = 5,
+                trySnap = mouse[0] > pad && mouse[0] < dims[0] - pad &&
+                    mouse[1] > pad && mouse[1] < dims[1] - pad;
+
+            if (trySnap) {
+                loc = geoChooseEdge(context.childNodes(datum), context.mouse(), context.projection).loc;
+            }
+        }
+
+        if (!loc) {
+            loc = context.map().mouseCoordinates();
+        }
+
+        context.replace(actionMoveNode(end.id, loc));
+    }
+
+
+    function undone() {
+        finished = true;
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    function setActiveElements() {
+        var active = isArea ? [wayId, end.id] : [segment.id, start.id, end.id];
+        context.surface().selectAll(utilEntitySelector(active))
+            .classed('active', true);
+    }
+
+
+    var drawWay = function(surface) {
+        draw.on('move', move)
+            .on('click', drawWay.add)
+            .on('clickWay', drawWay.addWay)
+            .on('clickNode', drawWay.addNode)
+            .on('undo', context.undo)
+            .on('cancel', drawWay.cancel)
+            .on('finish', drawWay.finish);
+
+        context.map()
+            .dblclickEnable(false)
+            .on('drawn.draw', setActiveElements);
+
+        setActiveElements();
+
+        surface.call(draw);
+
+        context.history()
+            .on('undone.draw', undone);
+    };
+
+
+    drawWay.off = function(surface) {
+        if (!finished)
+            context.pop();
+
+        context.map()
+            .on('drawn.draw', null);
+
+        surface.call(draw.off)
+            .selectAll('.active')
+            .classed('active', false);
+
+        context.history()
+            .on('undone.draw', null);
+    };
+
+
+    function ReplaceTemporaryNode(newNode) {
+        return function(graph) {
+            if (isArea) {
+                return graph
+                    .replace(way.addNode(newNode.id, index))
+                    .remove(end);
+
+            } else {
+                return graph
+                    .replace(graph.entity(wayId).addNode(newNode.id, index))
+                    .remove(end)
+                    .remove(segment)
+                    .remove(start);
+            }
+        };
+    }
+
+
+    // Accept the current position of the temporary node and continue drawing.
+    drawWay.add = function(loc) {
+        // prevent duplicate nodes
+        var last = context.hasEntity(way.nodes[way.nodes.length - (isArea ? 2 : 1)]);
+        if (last && last.loc[0] === loc[0] && last.loc[1] === loc[1]) return;
+
+        var newNode = osmNode({loc: loc});
+
+        context.replace(
+            actionAddEntity(newNode),
+            ReplaceTemporaryNode(newNode),
+            annotation
+        );
+
+        finished = true;
+        context.enter(mode);
+    };
+
+
+    // Connect the way to an existing way.
+    drawWay.addWay = function(loc, edge) {
+        var previousEdge = startIndex ?
+            [way.nodes[startIndex], way.nodes[startIndex - 1]] :
+            [way.nodes[0], way.nodes[1]];
+
+        // Avoid creating duplicate segments
+        if (!isArea && geoEdgeEqual(edge, previousEdge))
+            return;
+
+        var newNode = osmNode({ loc: loc });
+
+        context.perform(
+            actionAddMidpoint({ loc: loc, edge: edge}, newNode),
+            ReplaceTemporaryNode(newNode),
+            annotation
+        );
+
+        finished = true;
+        context.enter(mode);
+    };
+
+
+    // Connect the way to an existing node and continue drawing.
+    drawWay.addNode = function(node) {
+        // Avoid creating duplicate segments
+        if (way.areAdjacent(node.id, way.nodes[way.nodes.length - 1])) return;
+
+        context.perform(
+            ReplaceTemporaryNode(node),
+            annotation
+        );
+
+        finished = true;
+        context.enter(mode);
+    };
+
+
+    // Finish the draw operation, removing the temporary node. If the way has enough
+    // nodes to be valid, it's selected. Otherwise, return to browse mode.
+    drawWay.finish = function() {
+        context.pop();
+        finished = true;
+
+        window.setTimeout(function() {
+            context.map().dblclickEnable(true);
+        }, 1000);
+
+        if (context.hasEntity(wayId)) {
+            context.enter(
+                modeSelect(context, [wayId]).suppressMenu(true).newFeature(true)
+            );
+        } else {
+            context.enter(modeBrowse$$1(context));
+        }
+    };
+
+
+    // Cancel the draw operation and return to browse, deleting everything drawn.
+    drawWay.cancel = function() {
+        context.perform(
+            utilFunctor(baseGraph),
+            t('operations.cancel_draw.annotation'));
+
+        window.setTimeout(function() {
+            context.map().dblclickEnable(true);
+        }, 1000);
+
+        finished = true;
+        context.enter(modeBrowse$$1(context));
+    };
+
+
+    drawWay.tail = function(text) {
+        draw.tail(text);
+        return drawWay;
+    };
+
+
+    return drawWay;
+}
+
+function behaviorHash(context) {
+    var s0 = null, // cached window.location.hash
+        lat = 90 - 1e-8; // allowable latitude range
+
+
+    var parser = function(map$$1, s) {
+        var q = utilStringQs(s);
+        var args = (q.map || '').split('/').map(Number);
+        if (args.length < 3 || args.some(isNaN)) {
+            return true; // replace bogus hash
+        } else if (s !== formatter(map$$1).slice(1)) {
+            map$$1.centerZoom([args[2],
+                Math.min(lat, Math.max(-lat, args[1]))], args[0]);
+        }
+    };
+
+
+    var formatter = function(map$$1) {
+        var mode = context.mode(),
+            center = map$$1.center(),
+            zoom$$1 = map$$1.zoom(),
+            precision = Math.max(0, Math.ceil(Math.log(zoom$$1) / Math.LN2)),
+            q = lodash.omit(utilStringQs(window.location.hash.substring(1)), 'comment'),
+            newParams = {};
+
+        if (mode && mode.id === 'browse') {
+            delete q.id;
+        } else {
+            var selected = context.selectedIDs().filter(function(id) {
+                return !context.entity(id).isNew();
+            });
+            if (selected.length) {
+                newParams.id = selected.join(',');
+            }
+        }
+
+        newParams.map = zoom$$1.toFixed(2) +
+                '/' + center[1].toFixed(precision) +
+                '/' + center[0].toFixed(precision);
+
+        return '#' + utilQsString(lodash.assign(q, newParams), true);
+    };
+
+
+    function update() {
+        if (context.inIntro()) return;
+        var s1 = formatter(context.map());
+        if (s0 !== s1) {
+            window.location.replace(s0 = s1);  // don't recenter the map!
+        }
+    }
+
+
+    var throttledUpdate = lodash.throttle(update, 500);
+
+
+    function hashchange() {
+        if (window.location.hash === s0) return;  // ignore spurious hashchange events
+        if (parser(context.map(), (s0 = window.location.hash).substring(1))) {
+            update(); // replace bogus hash
+        }
+    }
+
+
+    function hash() {
+        context.map()
+            .on('move.hash', throttledUpdate);
+
+        context
+            .on('enter.hash', throttledUpdate);
+
+        select(window)
+            .on('hashchange.hash', hashchange);
+
+        if (window.location.hash) {
+            var q = utilStringQs(window.location.hash.substring(1));
+            if (q.id) context.zoomToEntity(q.id.split(',')[0], !q.map);
+            if (q.comment) context.storage('comment', q.comment);
+            hashchange();
+            if (q.map) hash.hadHash = true;
+        }
+    }
+
+
+    hash.off = function() {
+        throttledUpdate.cancel();
+
+        context.map()
+            .on('move.hash', null);
+
+        context
+            .on('enter.hash', null);
+
+        select(window)
+            .on('hashchange.hash', null);
+
+        window.location.hash = '';
+    };
+
+
+    return hash;
+}
+
+function behaviorLasso(context) {
+
+    var behavior = function(selection$$1) {
+        var lasso;
+
+
+        function mousedown() {
+            var button = 0;  // left
+            if (event.button === button && event.shiftKey === true) {
+                lasso = null;
+
+                selection$$1
+                    .on('mousemove.lasso', mousemove)
+                    .on('mouseup.lasso', mouseup);
+
+                event.stopPropagation();
+            }
+        }
+
+
+        function mousemove() {
+            if (!lasso) {
+                lasso = uiLasso(context);
+                context.surface().call(lasso);
+            }
+
+            lasso.p(context.mouse());
+        }
+
+
+        function normalize(a, b) {
+            return [
+                [Math.min(a[0], b[0]), Math.min(a[1], b[1])],
+                [Math.max(a[0], b[0]), Math.max(a[1], b[1])]];
+        }
+
+
+        function lassoed() {
+            if (!lasso) return [];
+
+            var graph = context.graph(),
+                bounds = lasso.extent().map(context.projection.invert),
+                extent$$1 = geoExtent$$1(normalize(bounds[0], bounds[1]));
+
+            return lodash.map(context.intersects(extent$$1).filter(function(entity) {
+                return entity.type === 'node' &&
+                    geoPointInPolygon(context.projection(entity.loc), lasso.coordinates) &&
+                    !context.features().isHidden(entity, graph, entity.geometry(graph));
+            }), 'id');
+        }
+
+
+        function mouseup() {
+            selection$$1
+                .on('mousemove.lasso', null)
+                .on('mouseup.lasso', null);
+
+            if (!lasso) return;
+
+            var ids = lassoed();
+            lasso.close();
+
+            if (ids.length) {
+                context.enter(modeSelect(context, ids));
+            }
+        }
+
+        selection$$1
+            .on('mousedown.lasso', mousedown);
+    };
+
+
+    behavior.off = function(selection$$1) {
+        selection$$1.on('mousedown.lasso', null);
+    };
+
+
+    return behavior;
+}
+
+function behaviorPaste(context) {
+    var keybinding = d3keybinding('paste');
+
+    function omitTag(v, k) {
+        return (
+            k === 'phone' ||
+            k === 'fax' ||
+            k === 'email' ||
+            k === 'website' ||
+            k === 'url' ||
+            k === 'note' ||
+            k === 'description' ||
+            k.indexOf('name') !== -1 ||
+            k.indexOf('wiki') === 0 ||
+            k.indexOf('addr:') === 0 ||
+            k.indexOf('contact:') === 0
+        );
+    }
+
+
+    function doPaste() {
+        event.preventDefault();
+        if (context.inIntro()) return;
+
+        var baseGraph = context.graph(),
+            mouse$$1 = context.mouse(),
+            projection = context.projection,
+            viewport = geoExtent$$1(projection.clipExtent()).polygon();
+
+        if (!geoPointInPolygon(mouse$$1, viewport)) return;
+
+        var extent$$1 = geoExtent$$1(),
+            oldIDs = context.copyIDs(),
+            oldGraph = context.copyGraph(),
+            newIDs = [];
+
+        if (!oldIDs.length) return;
+
+        var action = actionCopyEntities(oldIDs, oldGraph);
+        context.perform(action);
+
+        var copies = action.copies();
+        for (var id in copies) {
+            var oldEntity = oldGraph.entity(id),
+                newEntity = copies[id];
+
+            extent$$1._extend(oldEntity.extent(oldGraph));
+            newIDs.push(newEntity.id);
+            context.perform(
+                actionChangeTags(newEntity.id, lodash.omit(newEntity.tags, omitTag))
+            );
+        }
+
+        // Put pasted objects where mouse pointer is..
+        var center = projection(extent$$1.center()),
+            delta = [ mouse$$1[0] - center[0], mouse$$1[1] - center[1] ];
+
+        context.perform(actionMove(newIDs, delta, projection));
+        context.enter(modeMove$$1(context, newIDs, baseGraph));
+    }
+
+
+    function paste() {
+        keybinding.on(uiCmd('⌘V'), doPaste);
+        select(document).call(keybinding);
+        return paste;
+    }
+
+
+    paste.off = function() {
+        select(document).call(keybinding.off);
+    };
+
+
+    return paste;
+}
+
+function behaviorSelect(context) {
+
+    function keydown() {
+        if (event && event.shiftKey) {
+            context.surface()
+                .classed('behavior-multiselect', true);
+        }
+    }
+
+
+    function keyup() {
+        if (!event || !event.shiftKey) {
+            context.surface()
+                .classed('behavior-multiselect', false);
+        }
+    }
+
+
+    function click() {
+        var datum = event.target.__data__,
+            lasso = select('#surface .lasso').node(),
+            mode = context.mode();
+
+        if (!(datum instanceof osmEntity$$1)) {
+            if (!event.shiftKey && !lasso && mode.id !== 'browse')
+                context.enter(modeBrowse$$1(context));
+
+        } else if (!event.shiftKey && !lasso) {
+            // Avoid re-entering Select mode with same entity.
+            if (context.selectedIDs().length !== 1 || context.selectedIDs()[0] !== datum.id) {
+                context.enter(modeSelect(context, [datum.id]));
+            } else {
+                mode.suppressMenu(false).reselect();
+            }
+        } else if (context.selectedIDs().indexOf(datum.id) >= 0) {
+            var selectedIDs = lodash.without(context.selectedIDs(), datum.id);
+            context.enter(selectedIDs.length ? modeSelect(context, selectedIDs) : modeBrowse$$1(context));
+
+        } else {
+            context.enter(modeSelect(context, context.selectedIDs().concat([datum.id])));
+        }
+    }
+
+
+    var behavior = function(selection$$1) {
+        select(window)
+            .on('keydown.select', keydown)
+            .on('keyup.select', keyup);
+
+        selection$$1.on('click.select', click);
+
+        keydown();
+    };
+
+
+    behavior.off = function(selection$$1) {
+        select(window)
+            .on('keydown.select', null)
+            .on('keyup.select', null);
+
+        selection$$1.on('click.select', null);
+
+        keyup();
+    };
+
+
+    return behavior;
+}
+
+function modeAddArea$$1(context) {
+    var mode = {
+        id: 'add-area',
+        button: 'area',
+        title: t('modes.add_area.title'),
+        description: t('modes.add_area.description'),
+        key: '3'
+    };
+
+    var behavior = behaviorAddWay(context)
+            .tail(t('modes.add_area.tail'))
+            .on('start', start)
+            .on('startFromWay', startFromWay)
+            .on('startFromNode', startFromNode),
+        defaultTags = { area: 'yes' };
+
+
+    function start(loc) {
+        var graph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay({ tags: defaultTags });
+
+        context.perform(
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionAddVertex(way.id, node.id)
+        );
+
+        context.enter(modeDrawArea(context, way.id, graph));
+    }
+
+
+    function startFromWay(loc, edge) {
+        var graph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay({ tags: defaultTags });
+
+        context.perform(
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionAddVertex(way.id, node.id),
+            actionAddMidpoint({ loc: loc, edge: edge }, node)
+        );
+
+        context.enter(modeDrawArea(context, way.id, graph));
+    }
+
+
+    function startFromNode(node) {
+        var graph = context.graph(),
+            way = osmWay({ tags: defaultTags });
+
+        context.perform(
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionAddVertex(way.id, node.id)
+        );
+
+        context.enter(modeDrawArea(context, way.id, graph));
+    }
+
+
+    mode.enter = function() {
+        context.install(behavior);
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(behavior);
+    };
+
+
+    return mode;
+}
+
+function modeAddLine$$1(context) {
+    var mode = {
+        id: 'add-line',
+        button: 'line',
+        title: t('modes.add_line.title'),
+        description: t('modes.add_line.description'),
+        key: '2'
+    };
+
+    var behavior = behaviorAddWay(context)
+        .tail(t('modes.add_line.tail'))
+        .on('start', start)
+        .on('startFromWay', startFromWay)
+        .on('startFromNode', startFromNode);
+
+
+    function start(loc) {
+        var baseGraph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay();
+
+        context.perform(
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id)
+        );
+
+        context.enter(modeDrawLine(context, way.id, baseGraph));
+    }
+
+
+    function startFromWay(loc, edge) {
+        var baseGraph = context.graph(),
+            node = osmNode({ loc: loc }),
+            way = osmWay();
+
+        context.perform(
+            actionAddEntity(node),
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id),
+            actionAddMidpoint({ loc: loc, edge: edge }, node)
+        );
+
+        context.enter(modeDrawLine(context, way.id, baseGraph));
+    }
+
+
+    function startFromNode(node) {
+        var baseGraph = context.graph(),
+            way = osmWay();
+
+        context.perform(
+            actionAddEntity(way),
+            actionAddVertex(way.id, node.id)
+        );
+
+        context.enter(modeDrawLine(context, way.id, baseGraph));
+    }
+
+
+    mode.enter = function() {
+        context.install(behavior);
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(behavior);
+    };
+
+    return mode;
+}
+
+function modeAddPoint$$1(context) {
+    var mode = {
+        id: 'add-point',
+        button: 'point',
+        title: t('modes.add_point.title'),
+        description: t('modes.add_point.description'),
+        key: '1'
+    };
+
+    var behavior = behaviorDraw(context)
+        .tail(t('modes.add_point.tail'))
+        .on('click', add)
+        .on('clickWay', addWay)
+        .on('clickNode', addNode)
+        .on('cancel', cancel)
+        .on('finish', cancel);
+
+
+    function add(loc) {
+        var node = osmNode({ loc: loc });
+
+        context.perform(
+            actionAddEntity(node),
+            t('operations.add.annotation.point')
+        );
+
+        context.enter(
+            modeSelect(context, [node.id]).suppressMenu(true).newFeature(true)
+        );
+    }
+
+
+    function addWay(loc) {
+        add(loc);
+    }
+
+
+    function addNode(node) {
+        add(node.loc);
+    }
+
+
+    function cancel() {
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    mode.enter = function() {
+        context.install(behavior);
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(behavior);
+    };
+
+
+    return mode;
+}
+
+function modeBrowse$$1(context) {
+    var mode = {
+        button: 'browse',
+        id: 'browse',
+        title: t('modes.browse.title'),
+        description: t('modes.browse.description')
+    }, sidebar;
+
+    var behaviors = [
+        behaviorPaste(context),
+        behaviorHover(context).on('hover', context.ui().sidebar.hover),
+        behaviorSelect(context),
+        behaviorLasso(context),
+        modeDragNode$$1(context).behavior
+    ];
+
+
+    mode.enter = function() {
+        behaviors.forEach(function(behavior) {
+            context.install(behavior);
+        });
+
+        // Get focus on the body.
+        if (document.activeElement && document.activeElement.blur) {
+            document.activeElement.blur();
+        }
+
+        if (sidebar) {
+            context.ui().sidebar.show(sidebar);
+        } else {
+            context.ui().sidebar.select(null);
+        }
+    };
+
+
+    mode.exit = function() {
+        context.ui().sidebar.hover.cancel();
+        behaviors.forEach(function(behavior) {
+            context.uninstall(behavior);
+        });
+
+        if (sidebar) {
+            context.ui().sidebar.hide();
+        }
+    };
+
+
+    mode.sidebar = function(_) {
+        if (!arguments.length) return sidebar;
+        sidebar = _;
+        return mode;
+    };
+
+
+    return mode;
+}
+
+function modeDragNode$$1(context) {
+    var mode = {
+        id: 'drag-node',
+        button: 'browse'
+    };
+
+    var nudgeInterval,
+        activeIDs,
+        wasMidpoint,
+        isCancelled,
+        selectedIDs = [],
+        hover = behaviorHover(context).altDisables(true).on('hover', context.ui().sidebar.hover),
+        edit = behaviorEdit(context);
+
+
+    function edge(point, size) {
+        var pad = [30, 100, 30, 100];
+        if (point[0] > size[0] - pad[0]) return [-10, 0];
+        else if (point[0] < pad[2]) return [10, 0];
+        else if (point[1] > size[1] - pad[1]) return [0, -10];
+        else if (point[1] < pad[3]) return [0, 10];
+        return null;
+    }
+
+
+    function startNudge(nudge) {
+        if (nudgeInterval) window.clearInterval(nudgeInterval);
+        nudgeInterval = window.setInterval(function() {
+            context.pan(nudge);
+        }, 50);
+    }
+
+
+    function stopNudge() {
+        if (nudgeInterval) window.clearInterval(nudgeInterval);
+        nudgeInterval = null;
+    }
+
+
+    function moveAnnotation(entity) {
+        return t('operations.move.annotation.' + entity.geometry(context.graph()));
+    }
+
+
+    function connectAnnotation(entity) {
+        return t('operations.connect.annotation.' + entity.geometry(context.graph()));
+    }
+
+
+    function origin(entity) {
+        return context.projection(entity.loc);
+    }
+
+
+    function start(entity) {
+        isCancelled = event.sourceEvent.shiftKey ||
+            context.features().hasHiddenConnections(entity, context.graph());
+
+        if (isCancelled) return behavior.cancel();
+
+        wasMidpoint = entity.type === 'midpoint';
+        if (wasMidpoint) {
+            var midpoint = entity;
+            entity = osmNode();
+            context.perform(actionAddMidpoint(midpoint, entity));
+
+            var vertex = context.surface().selectAll('.' + entity.id);
+            behavior.target(vertex.node(), entity);
+
+        } else {
+            context.perform(actionNoop());
+        }
+
+        activeIDs = lodash.map(context.graph().parentWays(entity), 'id');
+        activeIDs.push(entity.id);
+        context.enter(mode);
+    }
+
+
+    function datum() {
+        if (event.sourceEvent.altKey) {
+            return {};
+        }
+
+        return event.sourceEvent.target.__data__ || {};
+    }
+
+
+    // via https://gist.github.com/shawnbot/4166283
+    function childOf(p, c) {
+        if (p === c) return false;
+        while (c && c !== p) c = c.parentNode;
+        return c === p;
+    }
+
+
+    function move(entity) {
+        if (isCancelled) return;
+        event.sourceEvent.stopPropagation();
+
+        var nudge = childOf(context.container().node(),
+            event.sourceEvent.toElement) &&
+            edge(event.point, context.map().dimensions());
+
+        if (nudge) startNudge(nudge);
+        else stopNudge();
+
+        var loc = context.projection.invert(event.point);
+
+        var d = datum();
+        if (d.type === 'node' && d.id !== entity.id) {
+            loc = d.loc;
+        } else if (d.type === 'way' && !select(event.sourceEvent.target).classed('fill')) {
+            loc = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection).loc;
+        }
+
+        context.replace(
+            actionMoveNode(entity.id, loc),
+            moveAnnotation(entity)
+        );
+    }
+
+
+    function end(entity) {
+        if (isCancelled) return;
+
+        var d = datum();
+
+        if (d.type === 'way') {
+            var choice = geoChooseEdge(context.childNodes(d), context.mouse(), context.projection);
+            context.replace(
+                actionAddMidpoint({ loc: choice.loc, edge: [d.nodes[choice.index - 1], d.nodes[choice.index]] }, entity),
+                connectAnnotation(d)
+            );
+
+        } else if (d.type === 'node' && d.id !== entity.id) {
+            context.replace(
+                actionConnect([d.id, entity.id]),
+                connectAnnotation(d)
+            );
+
+        } else if (wasMidpoint) {
+            context.replace(
+                actionNoop(),
+                t('operations.add.annotation.vertex')
+            );
+
+        } else {
+            context.replace(
+                actionNoop(),
+                moveAnnotation(entity)
+            );
+        }
+
+        var reselection = selectedIDs.filter(function(id) {
+            return context.graph().hasEntity(id);
+        });
+
+        if (reselection.length) {
+            context.enter(modeSelect(context, reselection).suppressMenu(true));
+        } else {
+            context.enter(modeBrowse$$1(context));
+        }
+    }
+
+
+    function cancel() {
+        behavior.cancel();
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    function setActiveElements() {
+        context.surface().selectAll(utilEntitySelector(activeIDs))
+            .classed('active', true);
+    }
+
+
+    var behavior = behaviorDrag()
+        .delegate('g.node, g.point, g.midpoint')
+        .surface(context.surface().node())
+        .origin(origin)
+        .on('start', start)
+        .on('move', move)
+        .on('end', end);
+
+
+    mode.enter = function() {
+        context.install(hover);
+        context.install(edit);
+
+        context.history()
+            .on('undone.drag-node', cancel);
+
+        context.map()
+            .on('drawn.drag-node', setActiveElements);
+
+        setActiveElements();
+    };
+
+
+    mode.exit = function() {
+        context.ui().sidebar.hover.cancel();
+        context.uninstall(hover);
+        context.uninstall(edit);
+
+        context.history()
+            .on('undone.drag-node', null);
+
+        context.map()
+            .on('drawn.drag-node', null);
+
+        context.surface()
+            .selectAll('.active')
+            .classed('active', false);
+
+        stopNudge();
+    };
+
+
+    mode.selectedIDs = function(_) {
+        if (!arguments.length) return selectedIDs;
+        selectedIDs = _;
+        return mode;
+    };
+
+
+    mode.behavior = behavior;
+
+
+    return mode;
+}
+
+function modeDrawArea(context, wayId, baseGraph) {
+    var mode = {
+        button: 'area',
+        id: 'draw-area'
+    };
+
+    var behavior;
+
+
+    mode.enter = function() {
+        var way = context.entity(wayId),
+            headId = way.nodes[way.nodes.length - 2],
+            tailId = way.first();
+
+        behavior = behaviorDrawWay(context, wayId, -1, mode, baseGraph)
+            .tail(t('modes.draw_area.tail'));
+
+        var addNode = behavior.addNode;
+
+        behavior.addNode = function(node) {
+            if (node.id === headId || node.id === tailId) {
+                behavior.finish();
+            } else {
+                addNode(node);
+            }
+        };
+
+        context.install(behavior);
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(behavior);
+    };
+
+
+    mode.selectedIDs = function() {
+        return [wayId];
+    };
+
+
+    return mode;
+}
+
+function modeDrawLine(context, wayId, baseGraph, affix) {
+    var mode = {
+        button: 'line',
+        id: 'draw-line'
+    };
+
+    var behavior;
+
+
+    mode.enter = function() {
+        var way = context.entity(wayId),
+            index = (affix === 'prefix') ? 0 : undefined,
+            headId = (affix === 'prefix') ? way.first() : way.last();
+
+        behavior = behaviorDrawWay(context, wayId, index, mode, baseGraph)
+            .tail(t('modes.draw_line.tail'));
+
+        var addNode = behavior.addNode;
+
+        behavior.addNode = function(node) {
+            if (node.id === headId) {
+                behavior.finish();
+            } else {
+                addNode(node);
+            }
+        };
+
+        context.install(behavior);
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(behavior);
+    };
+
+
+    mode.selectedIDs = function() {
+        return [wayId];
+    };
+
+
+    return mode;
+}
+
+function modeMove$$1(context, entityIDs, baseGraph) {
+    var mode = {
+        id: 'move',
+        button: 'browse'
+    };
+
+    var keybinding = d3keybinding('move'),
+        edit = behaviorEdit(context),
+        annotation = entityIDs.length === 1 ?
+            t('operations.move.annotation.' + context.geometry(entityIDs[0])) :
+            t('operations.move.annotation.multiple'),
+        cache,
+        origin,
+        nudgeInterval;
+
+
+    function vecSub(a, b) { return [a[0] - b[0], a[1] - b[1]]; }
+
+
+    function edge(point, size) {
+        var pad = [30, 100, 30, 100];
+        if (point[0] > size[0] - pad[0]) return [-10, 0];
+        else if (point[0] < pad[2]) return [10, 0];
+        else if (point[1] > size[1] - pad[1]) return [0, -10];
+        else if (point[1] < pad[3]) return [0, 10];
+        return null;
+    }
+
+
+    function startNudge(nudge) {
+        if (nudgeInterval) window.clearInterval(nudgeInterval);
+        nudgeInterval = window.setInterval(function() {
+            context.pan(nudge);
+
+            var currMouse = context.mouse(),
+                origMouse = context.projection(origin),
+                delta = vecSub(vecSub(currMouse, origMouse), nudge),
+                action = actionMove(entityIDs, delta, context.projection, cache);
+
+            context.overwrite(action, annotation);
+
+        }, 50);
+    }
+
+
+    function stopNudge() {
+        if (nudgeInterval) window.clearInterval(nudgeInterval);
+        nudgeInterval = null;
+    }
+
+
+    function move() {
+        var currMouse = context.mouse(),
+            origMouse = context.projection(origin),
+            delta = vecSub(currMouse, origMouse),
+            action = actionMove(entityIDs, delta, context.projection, cache);
+
+        context.overwrite(action, annotation);
+
+        var nudge = edge(currMouse, context.map().dimensions());
+        if (nudge) startNudge(nudge);
+        else stopNudge();
+    }
+
+
+    function finish() {
+        event.stopPropagation();
+        context.enter(modeSelect(context, entityIDs).suppressMenu(true));
+        stopNudge();
+    }
+
+
+    function cancel() {
+        if (baseGraph) {
+            while (context.graph() !== baseGraph) context.pop();
+            context.enter(modeBrowse$$1(context));
+        } else {
+            context.pop();
+            context.enter(modeSelect(context, entityIDs).suppressMenu(true));
+        }
+        stopNudge();
+    }
+
+
+    function undone() {
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    mode.enter = function() {
+        origin = context.map().mouseCoordinates();
+        cache = {};
+
+        context.install(edit);
+
+        context.perform(
+            actionNoop(),
+            annotation
+        );
+
+        context.surface()
+            .on('mousemove.move', move)
+            .on('click.move', finish);
+
+        context.history()
+            .on('undone.move', undone);
+
+        keybinding
+            .on('⎋', cancel)
+            .on('↩', finish);
+
+        select(document)
+            .call(keybinding);
+    };
+
+
+    mode.exit = function() {
+        stopNudge();
+
+        context.uninstall(edit);
+
+        context.surface()
+            .on('mousemove.move', null)
+            .on('click.move', null);
+
+        context.history()
+            .on('undone.move', null);
+
+        keybinding.off();
+    };
+
+
+    return mode;
+}
+
+function modeRotateWay$$1(context, wayId) {
+    var mode = {
+        id: 'rotate-way',
+        button: 'browse'
+    };
+
+    var keybinding = d3keybinding('rotate-way'),
+        edit = behaviorEdit(context);
+
+
+    mode.enter = function() {
+        context.install(edit);
+
+        var annotation = t('operations.rotate.annotation.' + context.geometry(wayId)),
+            way = context.graph().entity(wayId),
+            nodes = lodash.uniq(context.graph().childNodes(way)),
+            points = nodes.map(function(n) { return context.projection(n.loc); }),
+            pivot = d3polygonCentroid(points),
+            angle;
+
+        context.perform(
+            actionNoop(),
+            annotation
+        );
+
+        context.surface()
+            .on('mousemove.rotate-way', rotate)
+            .on('click.rotate-way', finish);
+
+        context.history()
+            .on('undone.rotate-way', undone);
+
+        keybinding
+            .on('⎋', cancel)
+            .on('↩', finish);
+
+        select(document)
+            .call(keybinding);
+
+
+        function rotate() {
+            var mousePoint = context.mouse(),
+                newAngle = Math.atan2(mousePoint[1] - pivot[1], mousePoint[0] - pivot[0]);
+
+            if (typeof angle === 'undefined') angle = newAngle;
+
+            context.replace(
+                actionRotateWay(wayId, pivot, newAngle - angle, context.projection),
+                annotation
+            );
+
+            angle = newAngle;
+        }
+
+
+        function finish() {
+            event.stopPropagation();
+            context.enter(modeSelect(context, [wayId]).suppressMenu(true));
+        }
+
+
+        function cancel() {
+            context.pop();
+            context.enter(modeSelect(context, [wayId]).suppressMenu(true));
+        }
+
+
+        function undone() {
+            context.enter(modeBrowse$$1(context));
+        }
+    };
+
+
+    mode.exit = function() {
+        context.uninstall(edit);
+
+        context.surface()
+            .on('mousemove.rotate-way', null)
+            .on('click.rotate-way', null);
+
+        context.history()
+            .on('undone.rotate-way', null);
+
+        keybinding.off();
+    };
+
+
+    return mode;
+}
+
+function operationCircularize(selectedIDs, context) {
+    var entityId = selectedIDs[0],
+        entity = context.entity(entityId),
+        extent = entity.extent(context.graph()),
+        geometry = context.geometry(entityId),
+        action = actionCircularize(entityId, context.projection);
+
+    var operation = function() {
+        var annotation = t('operations.circularize.annotation.' + geometry);
+        context.perform(action, annotation);
+    };
+
+
+    operation.available = function() {
+        return selectedIDs.length === 1 &&
+            entity.type === 'way' &&
+            lodash.uniq(entity.nodes).length > 1;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (extent.percentContainedIn(context.extent()) < 0.8) {
+            reason = 'too_large';
+        } else if (context.hasHiddenConnections(entityId)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.circularize.' + disable) :
+            t('operations.circularize.description.' + geometry);
+    };
+
+
+    operation.id = 'circularize';
+    operation.keys = [t('operations.circularize.key')];
+    operation.title = t('operations.circularize.title');
+
+
+    return operation;
+}
+
+function operationContinue(selectedIDs, context) {
+    var graph = context.graph(),
+        entities = selectedIDs.map(function(id) { return graph.entity(id); }),
+        geometries = lodash.extend({ line: [], vertex: [] },
+            lodash.groupBy(entities, function(entity) { return entity.geometry(graph); })),
+        vertex = geometries.vertex[0];
+
+
+    function candidateWays() {
+        return graph.parentWays(vertex).filter(function(parent) {
+            return parent.geometry(graph) === 'line' &&
+                parent.affix(vertex.id) &&
+                (geometries.line.length === 0 || geometries.line[0] === parent);
+        });
+    }
+
+
+    var operation = function() {
+        var candidate = candidateWays()[0];
+        context.enter(
+            modeDrawLine(context, candidate.id, context.graph(), candidate.affix(vertex.id))
+        );
+    };
+
+
+    operation.available = function() {
+        return geometries.vertex.length === 1 && geometries.line.length <= 1 &&
+            !context.features().hasHiddenConnections(vertex, context.graph());
+    };
+
+
+    operation.disabled = function() {
+        var candidates = candidateWays();
+        if (candidates.length === 0)
+            return 'not_eligible';
+        if (candidates.length > 1)
+            return 'multiple';
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.continue.' + disable) :
+            t('operations.continue.description');
+    };
+
+
+    operation.id = 'continue';
+    operation.keys = [t('operations.continue.key')];
+    operation.title = t('operations.continue.title');
+
+
+    return operation;
+}
+
+function operationDelete(selectedIDs, context) {
+    var action = actionDeleteMultiple(selectedIDs);
+
+    var operation = function() {
+        var annotation,
+            nextSelectedID;
+
+        if (selectedIDs.length > 1) {
+            annotation = t('operations.delete.annotation.multiple', { n: selectedIDs.length });
+
+        } else {
+            var id = selectedIDs[0],
+                entity = context.entity(id),
+                geometry = context.geometry(id),
+                parents = context.graph().parentWays(entity),
+                parent = parents[0];
+
+            annotation = t('operations.delete.annotation.' + geometry);
+
+            // Select the next closest node in the way.
+            if (geometry === 'vertex' && parents.length === 1 && parent.nodes.length > 2) {
+                var nodes = parent.nodes,
+                    i = nodes.indexOf(id);
+
+                if (i === 0) {
+                    i++;
+                } else if (i === nodes.length - 1) {
+                    i--;
+                } else {
+                    var a = geoSphericalDistance(entity.loc, context.entity(nodes[i - 1]).loc),
+                        b = geoSphericalDistance(entity.loc, context.entity(nodes[i + 1]).loc);
+                    i = a < b ? i - 1 : i + 1;
+                }
+
+                nextSelectedID = nodes[i];
+            }
+        }
+
+        if (nextSelectedID && context.hasEntity(nextSelectedID)) {
+            context.enter(modeSelect(context, [nextSelectedID]));
+        } else {
+            context.enter(modeBrowse$$1(context));
+        }
+
+        context.perform(action, annotation);
+    };
+
+
+    operation.available = function() {
+        return true;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.delete.' + disable) :
+            t('operations.delete.description');
+    };
+
+
+    operation.id = 'delete';
+    operation.keys = [uiCmd('⌘⌫'), uiCmd('⌘⌦'), uiCmd('⌦')];
+    operation.title = t('operations.delete.title');
+
+
+    return operation;
+}
+
+function operationDisconnect(selectedIDs, context) {
+    var vertices = lodash.filter(selectedIDs, function(entityId) {
+        return context.geometry(entityId) === 'vertex';
+    });
+
+    var entityId = vertices[0],
+        action = actionDisconnect(entityId);
+
+    if (selectedIDs.length > 1) {
+        action.limitWays(lodash.without(selectedIDs, entityId));
+    }
+
+    var operation = function() {
+        context.perform(action, t('operations.disconnect.annotation'));
+    };
+
+
+    operation.available = function() {
+        return vertices.length === 1;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.disconnect.' + disable) :
+            t('operations.disconnect.description');
+    };
+
+
+    operation.id = 'disconnect';
+    operation.keys = [t('operations.disconnect.key')];
+    operation.title = t('operations.disconnect.title');
+
+
+    return operation;
+}
+
+function operationMerge(selectedIDs, context) {
+    var join = actionJoin(selectedIDs),
+        merge = actionMerge(selectedIDs),
+        mergePolygon = actionMergePolygon(selectedIDs);
+
+    var operation = function() {
+        var annotation = t('operations.merge.annotation', {n: selectedIDs.length}),
+            action;
+
+        if (!join.disabled(context.graph())) {
+            action = join;
+        } else if (!merge.disabled(context.graph())) {
+            action = merge;
+        } else {
+            action = mergePolygon;
+        }
+
+        context.perform(action, annotation);
+        var ids = selectedIDs.filter(function(id) { return context.hasEntity(id); });
+        context.enter(modeSelect(context, ids).suppressMenu(true));
+    };
+
+
+    operation.available = function() {
+        return selectedIDs.length >= 2;
+    };
+
+
+    operation.disabled = function() {
+        return join.disabled(context.graph()) &&
+            merge.disabled(context.graph()) &&
+            mergePolygon.disabled(context.graph());
+    };
+
+
+    operation.tooltip = function() {
+        var j = join.disabled(context.graph()),
+            m = merge.disabled(context.graph()),
+            p = mergePolygon.disabled(context.graph());
+
+        if (j === 'restriction' && m && p) {
+            return t('operations.merge.restriction',
+                { relation: context.presets().item('type/restriction').name() });
+        }
+
+        if (p === 'incomplete_relation' && j && m) {
+            return t('operations.merge.incomplete_relation');
+        }
+
+        if (j && m && p) {
+            return t('operations.merge.' + j);
+        }
+
+        return t('operations.merge.description');
+    };
+
+
+    operation.id = 'merge';
+    operation.keys = [t('operations.merge.key')];
+    operation.title = t('operations.merge.title');
+
+
+    return operation;
+}
+
+function operationMove(selectedIDs, context) {
+    var extent = selectedIDs.reduce(function(extent, id) {
+            return extent.extend(context.entity(id).extent(context.graph()));
+        }, geoExtent$$1());
+
+    var operation = function() {
+        context.enter(modeMove$$1(context, selectedIDs));
+    };
+
+
+    operation.available = function() {
+        return selectedIDs.length > 1 ||
+            context.entity(selectedIDs[0]).type !== 'node';
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (extent.area() && extent.percentContainedIn(context.extent()) < 0.8) {
+            reason = 'too_large';
+        } else if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
+            reason = 'connected_to_hidden';
+        }
+
+        return actionMove(selectedIDs).disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.move.' + disable) :
+            t('operations.move.description');
+    };
+
+
+    operation.id = 'move';
+    operation.keys = [t('operations.move.key')];
+    operation.title = t('operations.move.title');
+
+
+    return operation;
+}
+
+function operationOrthogonalize(selectedIDs, context) {
+    var entityId = selectedIDs[0],
+        entity = context.entity(entityId),
+        extent = entity.extent(context.graph()),
+        geometry = context.geometry(entityId),
+        action = actionOrthogonalize(entityId, context.projection);
+
+    var operation = function() {
+        var annotation = t('operations.orthogonalize.annotation.' + geometry);
+        context.perform(action, annotation);
+    };
+
+
+    operation.available = function() {
+        return selectedIDs.length === 1 &&
+            entity.type === 'way' &&
+            entity.isClosed() &&
+            lodash.uniq(entity.nodes).length > 2;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (extent.percentContainedIn(context.extent()) < 0.8) {
+            reason = 'too_large';
+        } else if (context.hasHiddenConnections(entityId)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.orthogonalize.' + disable) :
+            t('operations.orthogonalize.description.' + geometry);
+    };
+
+
+    operation.id = 'orthogonalize';
+    operation.keys = [t('operations.orthogonalize.key')];
+    operation.title = t('operations.orthogonalize.title');
+
+
+    return operation;
+}
+
+function operationReverse(selectedIDs, context) {
+    var entityId = selectedIDs[0];
+
+    var operation = function() {
+        context.perform(
+            actionReverse(entityId),
+            t('operations.reverse.annotation')
+        );
+    };
+
+
+    operation.available = function() {
+        return selectedIDs.length === 1 &&
+            context.geometry(entityId) === 'line';
+    };
+
+
+    operation.disabled = function() {
+        return false;
+    };
+
+
+    operation.tooltip = function() {
+        return t('operations.reverse.description');
+    };
+
+
+    operation.id = 'reverse';
+    operation.keys = [t('operations.reverse.key')];
+    operation.title = t('operations.reverse.title');
+
+
+    return operation;
+}
+
+function operationRotate(selectedIDs, context) {
+    var entityId = selectedIDs[0],
+        entity = context.entity(entityId),
+        extent = entity.extent(context.graph()),
+        geometry = context.geometry(entityId);
+
+    var operation = function() {
+        context.enter(modeRotateWay$$1(context, entityId));
+    };
+
+
+    operation.available = function() {
+        if (selectedIDs.length !== 1 || entity.type !== 'way')
+            return false;
+        if (geometry === 'area')
+            return true;
+        if (entity.isClosed() &&
+            context.graph().parentRelations(entity).some(function(r) { return r.isMultipolygon(); }))
+            return true;
+        return false;
+    };
+
+
+    operation.disabled = function() {
+        if (extent.percentContainedIn(context.extent()) < 0.8) {
+            return 'too_large';
+        } else if (context.hasHiddenConnections(entityId)) {
+            return 'connected_to_hidden';
+        } else {
+            return false;
+        }
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.rotate.' + disable) :
+            t('operations.rotate.description');
+    };
+
+
+    operation.id = 'rotate';
+    operation.keys = [t('operations.rotate.key')];
+    operation.title = t('operations.rotate.title');
+
+
+    return operation;
+}
+
+function operationSplit(selectedIDs, context) {
+    var vertices = lodash.filter(selectedIDs, function(entityId) {
+        return context.geometry(entityId) === 'vertex';
+    });
+
+    var entityId = vertices[0],
+        action = actionSplit(entityId);
+
+    if (selectedIDs.length > 1) {
+        action.limitWays(lodash.without(selectedIDs, entityId));
+    }
+
+
+    var operation = function() {
+        var annotation;
+
+        var ways = action.ways(context.graph());
+        if (ways.length === 1) {
+            annotation = t('operations.split.annotation.' + context.geometry(ways[0].id));
+        } else {
+            annotation = t('operations.split.annotation.multiple', {n: ways.length});
+        }
+
+        var difference = context.perform(action, annotation);
+        context.enter(modeSelect(context, difference.extantIDs()));
+    };
+
+
+    operation.available = function() {
+        return vertices.length === 1;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (lodash.some(selectedIDs, context.hasHiddenConnections)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        if (disable) {
+            return t('operations.split.' + disable);
+        }
+
+        var ways = action.ways(context.graph());
+        if (ways.length === 1) {
+            return t('operations.split.description.' + context.geometry(ways[0].id));
+        } else {
+            return t('operations.split.description.multiple');
+        }
+    };
+
+
+    operation.id = 'split';
+    operation.keys = [t('operations.split.key')];
+    operation.title = t('operations.split.title');
+
+
+    return operation;
+}
+
+function operationStraighten(selectedIDs, context) {
+    var entityId = selectedIDs[0],
+        action = actionStraighten(entityId, context.projection);
+
+
+    function operation() {
+        var annotation = t('operations.straighten.annotation');
+        context.perform(action, annotation);
+    }
+
+
+    operation.available = function() {
+        var entity = context.entity(entityId);
+        return selectedIDs.length === 1 &&
+            entity.type === 'way' &&
+            !entity.isClosed() &&
+            lodash.uniq(entity.nodes).length > 2;
+    };
+
+
+    operation.disabled = function() {
+        var reason;
+        if (context.hasHiddenConnections(entityId)) {
+            reason = 'connected_to_hidden';
+        }
+        return action.disabled(context.graph()) || reason;
+    };
+
+
+    operation.tooltip = function() {
+        var disable = operation.disabled();
+        return disable ?
+            t('operations.straighten.' + disable) :
+            t('operations.straighten.description');
+    };
+
+
+    operation.id = 'straighten';
+    operation.keys = [t('operations.straighten.key')];
+    operation.title = t('operations.straighten.title');
+
+
+    return operation;
+}
+
+
+
+var Operations = Object.freeze({
+	operationCircularize: operationCircularize,
+	operationContinue: operationContinue,
+	operationDelete: operationDelete,
+	operationDisconnect: operationDisconnect,
+	operationMerge: operationMerge,
+	operationMove: operationMove,
+	operationOrthogonalize: operationOrthogonalize,
+	operationReverse: operationReverse,
+	operationRotate: operationRotate,
+	operationSplit: operationSplit,
+	operationStraighten: operationStraighten
+});
+
+function modeSave$$1(context) {
+    var mode = {
+        id: 'save'
+    };
+    
+    if (select('input[name="approvalProcess"]:checked').property('value') === 'individual') {
+        // when clicking the save button, filter out entities which were not approved manually
+        var deletions = [];
+        lodash.map(window.importedEntities, function(entity) {
+            try {
+                if (!entity.approvedForEdit && context.entity(entity.id)) {
+                    deletions.push(entity.id); 
+                }
+            } catch (e) {
+                // entity was already deleted, can't be removed here
+            }
+        });
+        operationDelete(deletions, context)();
+    }
+
+    var ui = uiCommit(context)
+            .on('cancel', cancel)
+            .on('save', save);
+
+
+    function cancel() {
+        context.enter(modeBrowse$$1(context));
+    }
+
+
+    function save(e, tryAgain) {
+        function withChildNodes(ids, graph) {
+            return lodash.uniq(lodash.reduce(ids, function(result, id) {
+                var e = graph.entity(id);
+                if (e.type === 'way') {
+                    try {
+                        var cn = graph.childNodes(e);
+                        result.push.apply(result, lodash.map(lodash.filter(cn, 'version'), 'id'));
+                    } catch (err) {
+                        /* eslint-disable no-console */
+                        if (typeof console !== 'undefined') console.error(err);
+                        /* eslint-enable no-console */
+                    }
+                }
+                return result;
+            }, lodash.clone(ids)));
+        }
+
+        var loading = uiLoading(context).message(t('save.uploading')).blocking(true),
+            history = context.history(),
+            origChanges = history.changes(actionDiscardTags(history.difference())),
+            localGraph = context.graph(),
+            remoteGraph = coreGraph$$1(history.base(), true),
+            modified = lodash.filter(history.difference().summary(), {changeType: 'modified'}),
+            toCheck = lodash.map(lodash.map(modified, 'entity'), 'id'),
+            toLoad = withChildNodes(toCheck, localGraph),
+            conflicts = [],
+            errors = [];
+
+        if (!tryAgain) history.perform(actionNoop());  // checkpoint
+        context.container().call(loading);
+
+        if (toCheck.length) {
+            context.connection().loadMultiple(toLoad, loaded);
+        } else {
+            finalize();
+        }
+
+
+        // Reload modified entities into an alternate graph and check for conflicts..
+        function loaded(err, result) {
+            if (errors.length) return;
+
+            if (err) {
+                errors.push({
+                    msg: err.responseText,
+                    details: [ t('save.status_code', { code: err.status }) ]
+                });
+                showErrors();
+
+            } else {
+                var loadMore = [];
+                lodash.each(result.data, function(entity) {
+                    remoteGraph.replace(entity);
+                    toLoad = lodash.without(toLoad, entity.id);
+
+                    // Because loadMultiple doesn't download /full like loadEntity,
+                    // need to also load children that aren't already being checked..
+                    if (!entity.visible) return;
+                    if (entity.type === 'way') {
+                        loadMore.push.apply(loadMore,
+                            lodash.difference(entity.nodes, toCheck, toLoad, loadMore));
+                    } else if (entity.type === 'relation' && entity.isMultipolygon()) {
+                        loadMore.push.apply(loadMore,
+                            lodash.difference(lodash.map(entity.members, 'id'), toCheck, toLoad, loadMore));
+                    }
+                });
+
+                if (loadMore.length) {
+                    toLoad.push.apply(toLoad, loadMore);
+                    context.connection().loadMultiple(loadMore, loaded);
+                }
+
+                if (!toLoad.length) {
+                    checkConflicts();
+                }
+            }
+        }
+
+
+        function checkConflicts() {
+            function choice(id, text$$1, action) {
+                return { id: id, text: text$$1, action: function() { history.replace(action); } };
+            }
+            function formatUser(d) {
+                return '<a href="' + context.connection().userURL(d) + '" target="_blank">' + d + '</a>';
+            }
+            function entityName(entity) {
+                return utilDisplayName(entity) || (utilDisplayType(entity.id) + ' ' + entity.id);
+            }
+
+            function compareVersions(local$$1, remote) {
+                if (local$$1.version !== remote.version) return false;
+
+                if (local$$1.type === 'way') {
+                    var children = lodash.union(local$$1.nodes, remote.nodes);
+
+                    for (var i = 0; i < children.length; i++) {
+                        var a = localGraph.hasEntity(children[i]),
+                            b = remoteGraph.hasEntity(children[i]);
+
+                        if (a && b && a.version !== b.version) return false;
+                    }
+                }
+
+                return true;
+            }
+
+            lodash.each(toCheck, function(id) {
+                var local$$1 = localGraph.entity(id),
+                    remote = remoteGraph.entity(id);
+
+                if (compareVersions(local$$1, remote)) return;
+
+                var action = actionMergeRemoteChanges,
+                    merge$$1 = action(id, localGraph, remoteGraph, formatUser);
+
+                history.replace(merge$$1);
+
+                var mergeConflicts = merge$$1.conflicts();
+                if (!mergeConflicts.length) return;  // merged safely
+
+                var forceLocal = action(id, localGraph, remoteGraph).withOption('force_local'),
+                    forceRemote = action(id, localGraph, remoteGraph).withOption('force_remote'),
+                    keepMine = t('save.conflict.' + (remote.visible ? 'keep_local' : 'restore')),
+                    keepTheirs = t('save.conflict.' + (remote.visible ? 'keep_remote' : 'delete'));
+
+                conflicts.push({
+                    id: id,
+                    name: entityName(local$$1),
+                    details: mergeConflicts,
+                    chosen: 1,
+                    choices: [
+                        choice(id, keepMine, forceLocal),
+                        choice(id, keepTheirs, forceRemote)
+                    ]
+                });
+            });
+
+            finalize();
+        }
+
+
+        function finalize() {
+            if (conflicts.length) {
+                conflicts.sort(function(a,b) { return b.id.localeCompare(a.id); });
+                showConflicts();
+            } else if (errors.length) {
+                showErrors();
+            } else {
+                var changes = history.changes(actionDiscardTags(history.difference()));
+                if (changes.modified.length || changes.created.length || changes.deleted.length) {
+                    context.connection().putChangeset(
+                        changes,
+                        context.version,
+                        e.comment,
+                        history.imageryUsed(),
+                        function(err, changeset_id) {
+                            if (err) {
+                                errors.push({
+                                    msg: err.responseText,
+                                    details: [ t('save.status_code', { code: err.status }) ]
+                                });
+                                showErrors();
+                            } else {
+                                history.clearSaved();
+                                success(e, changeset_id);
+                                // Add delay to allow for postgres replication #1646 #2678
+                                window.setTimeout(function() {
+                                    loading.close();
+                                    context.flush();
+                                }, 2500);
+                            }
+                        });
+                } else {        // changes were insignificant or reverted by user
+                    loading.close();
+                    context.flush();
+                    cancel();
+                }
+            }
+        }
+
+
+        function showConflicts() {
+            var selection$$1 = context.container()
+                .select('#sidebar')
+                .append('div')
+                .attr('class','sidebar-component');
+
+            loading.close();
+
+            selection$$1.call(uiConflicts(context)
+                .list(conflicts)
+                .on('download', function() {
+                    var data = JXON.stringify(context.connection().osmChangeJXON('CHANGEME', origChanges)),
+                        win = window.open('data:text/xml,' + encodeURIComponent(data), '_blank');
+                    win.focus();
+                })
+                .on('cancel', function() {
+                    history.pop();
+                    selection$$1.remove();
+                })
+                .on('save', function() {
+                    for (var i = 0; i < conflicts.length; i++) {
+                        if (conflicts[i].chosen === 1) {  // user chose "keep theirs"
+                            var entity = context.hasEntity(conflicts[i].id);
+                            if (entity && entity.type === 'way') {
+                                var children = lodash.uniq(entity.nodes);
+                                for (var j = 0; j < children.length; j++) {
+                                    history.replace(actionRevert(children[j]));
+                                }
+                            }
+                            history.replace(actionRevert(conflicts[i].id));
+                        }
+                    }
+
+                    selection$$1.remove();
+                    save(e, true);
+                })
+            );
+        }
+
+
+        function showErrors() {
+            var selection$$1 = uiConfirm(context.container());
+
+            history.pop();
+            loading.close();
+
+            selection$$1
+                .select('.modal-section.header')
+                .append('h3')
+                .text(t('save.error'));
+
+            addErrors(selection$$1, errors);
+            selection$$1.okButton();
+        }
+
+
+        function addErrors(selection$$1, data) {
+            var message = selection$$1
+                .select('.modal-section.message-text');
+
+            var items = message
+                .selectAll('.error-container')
+                .data(data);
+
+            var enter = items.enter()
+                .append('div')
+                .attr('class', 'error-container');
+
+            enter
+                .append('a')
+                .attr('class', 'error-description')
+                .attr('href', '#')
+                .classed('hide-toggle', true)
+                .text(function(d) { return d.msg || t('save.unknown_error_details'); })
+                .on('click', function() {
+                    var error = select(this),
+                        detail = select(this.nextElementSibling),
+                        exp = error.classed('expanded');
+
+                    detail.style('display', exp ? 'none' : 'block');
+                    error.classed('expanded', !exp);
+
+                    event.preventDefault();
+                });
+
+            var details = enter
+                .append('div')
+                .attr('class', 'error-detail-container')
+                .style('display', 'none');
+
+            details
+                .append('ul')
+                .attr('class', 'error-detail-list')
+                .selectAll('li')
+                .data(function(d) { return d.details || []; })
+                .enter()
+                .append('li')
+                .attr('class', 'error-detail-item')
+                .text(function(d) { return d; });
+
+            items.exit()
+                .remove();
+        }
+
+    }
+
+
+    function success(e, changeset_id) {
+        context.enter(modeBrowse$$1(context)
+            .sidebar(uiSuccess(context)
+                .changeset({
+                    id: changeset_id,
+                    comment: e.comment
+                })
+                .on('cancel', function() {
+                    context.ui().sidebar.hide();
+                })
+            )
+        );
+    }
+
+
+    mode.enter = function() {
+        context.connection().authenticate(function(err) {
+            if (err) {
+                cancel();
+            } else {
+                context.ui().sidebar.show(ui);
+            }
+        });
+    };
+
+
+    mode.exit = function() {
+        context.ui().sidebar.hide();
+    };
+
+    return mode;
+}
+
+// Translate a MacOS key command into the appropriate Windows/Linux equivalent.
+// For example, ⌘Z -> Ctrl+Z
+function uiCmd(code) {
+    var detected = utilDetect();
+
+    if (detected.os === 'mac') {
+        return code;
+    }
+
+    if (detected.os === 'win') {
+        if (code === '⌘⇧Z') return 'Ctrl+Y';
+    }
+
+    var result = '',
+        replacements = {
+            '⌘': 'Ctrl',
+            '⇧': 'Shift',
+            '⌥': 'Alt',
+            '⌫': 'Backspace',
+            '⌦': 'Delete'
+        };
+
+    for (var i = 0; i < code.length; i++) {
+        if (code[i] in replacements) {
+            result += replacements[code[i]] + (i < code.length - 1 ? '+' : '');
+        } else {
+            result += code[i];
+        }
+    }
+
+    return result;
+}
+
+var relatedParent;
+
+
+function modeSelect(context, selectedIDs) {
+    var mode = {
+        id: 'select',
+        button: 'browse'
+    };
+
+    var keybinding = d3keybinding('select'),
+        timeout$$1 = null,
+        behaviors = [
+            behaviorCopy(context),
+            behaviorPaste(context),
+            behaviorBreathe(context),
+            behaviorHover(context),
+            behaviorSelect(context),
+            behaviorLasso(context),
+            modeDragNode$$1(context).selectedIDs(selectedIDs).behavior
+        ],
+        inspector,
+        radialMenu,
+        newFeature = false,
+        suppressMenu = false,
+        follow = false;
+
+
+    var wrap = context.container()
+        .select('.inspector-wrap');
+
+
+    function singular() {
+        if (selectedIDs.length === 1) {
+            return context.hasEntity(selectedIDs[0]);
+        }
+    }
+
+
+    // find the common parent ways for nextVertex, previousVertex
+    function commonParents() {
+        var graph = context.graph(),
+            commonParents = [];
+
+        for (var i = 0; i < selectedIDs.length; i++) {
+            var entity = context.hasEntity(selectedIDs[i]);
+            if (!entity || entity.geometry(graph) !== 'vertex') {
+                return [];  // selection includes some not vertexes
+            }
+
+            var currParents = lodash.map(graph.parentWays(entity), 'id');
+            if (!commonParents.length) {
+                commonParents = currParents;
+                continue;
+            }
+
+            commonParents = lodash.intersection(commonParents, currParents);
+            if (!commonParents.length) {
+                return [];
+            }
+        }
+
+        return commonParents;
+    }
+
+
+    function singularParent() {
+        var parents = commonParents();
+        if (!parents) {
+            relatedParent = null;
+            return null;
+        }
+
+        // relatedParent is used when we visit a vertex with multiple
+        // parents, and we want to remember which parent line we started on.
+
+        if (parents.length === 1) {
+            relatedParent = parents[0];  // remember this parent for later
+            return relatedParent;
+        }
+
+        if (parents.indexOf(relatedParent) !== -1) {
+            return relatedParent;   // prefer the previously seen parent
+        }
+
+        return parents[0];
+    }
+
+
+    function closeMenu() {
+        if (radialMenu) {
+            context.surface().call(radialMenu.close);
+        }
+    }
+
+
+    function positionMenu() {
+        if (suppressMenu || !radialMenu) { return; }
+
+        var entity = singular();
+        if (entity && context.geometry(entity.id) === 'relation') {
+            suppressMenu = true;
+        } else if (entity && entity.type === 'node') {
+            radialMenu.center(context.projection(entity.loc));
+        } else {
+            var point = context.mouse(),
+                viewport = geoExtent$$1(context.projection.clipExtent()).polygon();
+            if (geoPointInPolygon(point, viewport)) {
+                radialMenu.center(point);
+            } else {
+                suppressMenu = true;
+            }
+        }
+    }
+
+
+    function showMenu() {
+        closeMenu();
+        if (!suppressMenu && radialMenu) {
+            context.surface().call(radialMenu);
+        }
+    }
+
+
+    function toggleMenu() {
+        if (select('.radial-menu').empty()) {
+            showMenu();
+        } else {
+            closeMenu();
+        }
+    }
+
+
+    mode.selectedIDs = function() {
+        return selectedIDs;
+    };
+
+
+    mode.reselect = function() {
+        var surfaceNode = context.surface().node();
+        if (surfaceNode.focus) {   // FF doesn't support it
+            surfaceNode.focus();
+        }
+
+        positionMenu();
+        showMenu();
+    };
+
+
+    mode.newFeature = function(_) {
+        if (!arguments.length) return newFeature;
+        newFeature = _;
+        return mode;
+    };
+
+
+    mode.suppressMenu = function(_) {
+        if (!arguments.length) return suppressMenu;
+        suppressMenu = _;
+        return mode;
+    };
+
+
+    mode.follow = function(_) {
+        if (!arguments.length) return follow;
+        follow = _;
+        return mode;
+    };
+
+
+    mode.enter = function() {
+
+        function update() {
+            closeMenu();
+            if (lodash.some(selectedIDs, function(id) { return !context.hasEntity(id); })) {
+                // Exit mode if selected entity gets undone
+                context.enter(modeBrowse$$1(context));
+            }
+        }
+
+
+        function dblclick() {
+            var target = select(event.target),
+                datum = target.datum();
+
+            if (datum instanceof osmWay && !target.classed('fill')) {
+                var choice = geoChooseEdge(context.childNodes(datum), context.mouse(), context.projection),
+                    node = osmNode();
+
+                var prev = datum.nodes[choice.index - 1],
+                    next = datum.nodes[choice.index];
+
+                context.perform(
+                    actionAddMidpoint({loc: choice.loc, edge: [prev, next]}, node),
+                    t('operations.add.annotation.vertex')
+                );
+
+                event.preventDefault();
+                event.stopPropagation();
+            }
+        }
+
+
+        function selectElements(drawn) {
+            var surface = context.surface(),
+                entity = singular();
+
+            if (entity && context.geometry(entity.id) === 'relation') {
+                suppressMenu = true;
+                return;
+            }
+
+            surface.selectAll('.related')
+                .classed('related', false);
+
+            singularParent();
+            if (relatedParent) {
+                surface.selectAll(utilEntitySelector([relatedParent]))
+                    .classed('related', true);
+            }
+
+            var selection$$1 = context.surface()
+                .selectAll(utilEntityOrMemberSelector(selectedIDs, context.graph()));
+
+            if (selection$$1.empty()) {
+                // Return to browse mode if selected DOM elements have
+                // disappeared because the user moved them out of view..
+                var source = event && event.type === 'zoom' && event.sourceEvent;
+                if (drawn && source && (source.type === 'mousemove' || source.type === 'touchmove')) {
+                    context.enter(modeBrowse$$1(context));
+                }
+            } else {
+                selection$$1
+                    .classed('selected', true);
+            }
+        }
+
+
+        function esc() {
+            if (!context.inIntro()) {
+                context.enter(modeBrowse$$1(context));
+            }
+        }
+
+
+        function firstVertex() {
+            event.preventDefault();
+            var parent = singularParent();
+            if (parent) {
+                var way = context.entity(parent);
+                context.enter(
+                    modeSelect(context, [way.first()]).follow(true)
+                );
+            }
+        }
+
+
+        function lastVertex() {
+            event.preventDefault();
+            var parent = singularParent();
+            if (parent) {
+                var way = context.entity(parent);
+                context.enter(
+                    modeSelect(context, [way.last()]).follow(true)
+                );
+            }
+        }
+
+
+        function previousVertex() {
+            event.preventDefault();
+            var parent = singularParent();
+            if (!parent) return;
+
+            var way = context.entity(parent),
+                length = way.nodes.length,
+                curr = way.nodes.indexOf(selectedIDs[0]),
+                index = -1;
+
+            if (curr > 0) {
+                index = curr - 1;
+            } else if (way.isClosed()) {
+                index = length - 2;
+            }
+
+            if (index !== -1) {
+                context.enter(
+                    modeSelect(context, [way.nodes[index]]).follow(true)
+                );
+            }
+        }
+
+
+        function nextVertex() {
+            event.preventDefault();
+            var parent = singularParent();
+            if (!parent) return;
+
+            var way = context.entity(parent),
+                length = way.nodes.length,
+                curr = way.nodes.indexOf(selectedIDs[0]),
+                index = -1;
+
+            if (curr < length - 1) {
+                index = curr + 1;
+            } else if (way.isClosed()) {
+                index = 0;
+            }
+
+            if (index !== -1) {
+                context.enter(
+                    modeSelect(context, [way.nodes[index]]).follow(true)
+                );
+            }
+        }
+
+
+        function nextParent() {
+            event.preventDefault();
+            var parents = lodash.uniq(commonParents());
+            if (!parents || parents.length < 2) return;
+
+            var index = parents.indexOf(relatedParent);
+            if (index < 0 || index > parents.length - 2) {
+                relatedParent = parents[0];
+            } else {
+                relatedParent = parents[index + 1];
+            }
+
+            var surface = context.surface();
+            surface.selectAll('.related')
+                .classed('related', false);
+
+            if (relatedParent) {
+                surface.selectAll(utilEntitySelector([relatedParent]))
+                    .classed('related', true);
+            }
+        }
+
+
+        behaviors.forEach(function(behavior) {
+            context.install(behavior);
+        });
+
+        var operations = lodash.without(values(Operations), operationDelete)
+                .map(function(o) { return o(selectedIDs, context); })
+                .filter(function(o) { return o.available(); });
+
+        operations.unshift(operationDelete(selectedIDs, context));
+
+        keybinding
+            .on(['[','pgup'], previousVertex)
+            .on([']', 'pgdown'], nextVertex)
+            .on([uiCmd('⌘['), 'home'], firstVertex)
+            .on([uiCmd('⌘]'), 'end'], lastVertex)
+            .on(['\\', 'pause'], nextParent)
+            .on('⎋', esc, true)
+            .on('space', toggleMenu);
+
+        operations.forEach(function(operation) {
+            operation.keys.forEach(function(key) {
+                keybinding.on(key, function() {
+                    if (!(context.inIntro() || operation.disabled())) {
+                        operation();
+                    }
+                });
+            });
+        });
+
+        select(document)
+            .call(keybinding);
+
+        radialMenu = uiRadialMenu(context, operations);
+
+        context.ui().sidebar
+            .select(singular() ? singular().id : null, newFeature);
+
+        context.history()
+            .on('undone.select', update)
+            .on('redone.select', update);
+
+        context.map()
+            .on('move.select', closeMenu)
+            .on('drawn.select', selectElements);
+
+        selectElements();
+
+        var show = event && !suppressMenu;
+
+        if (show) {
+            positionMenu();
+        }
+
+        if (follow) {
+            var extent$$1 = geoExtent$$1(),
+                graph = context.graph();
+            selectedIDs.forEach(function(id) {
+                var entity = context.entity(id);
+                extent$$1._extend(entity.extent(graph));
+            });
+
+            var loc = extent$$1.center();
+            context.map().centerEase(loc);
+        }
+
+        timeout$$1 = window.setTimeout(function() {
+            if (show) {
+                showMenu();
+            }
+
+            context.surface()
+                .on('dblclick.select', dblclick);
+        }, 200);
+
+        if (selectedIDs.length > 1) {
+            var entities = uiSelectionList(context, selectedIDs);
+            context.ui().sidebar.show(entities);
+        }
+    };
+
+
+    mode.exit = function() {
+        if (timeout$$1) window.clearTimeout(timeout$$1);
+
+        if (inspector) wrap.call(inspector.close);
+
+        behaviors.forEach(function(behavior) {
+            context.uninstall(behavior);
+        });
+
+        keybinding.off();
+        closeMenu();
+        radialMenu = undefined;
+
+        context.history()
+            .on('undone.select', null)
+            .on('redone.select', null);
+
+        var surface = context.surface();
+
+        surface
+            .on('dblclick.select', null);
+
+        surface
+            .selectAll('.selected')
+            .classed('selected', false);
+
+        surface
+            .selectAll('.related')
+            .classed('related', false);
+
+        context.map().on('drawn.select', null);
+        context.ui().sidebar.hide();
+    };
+
+
+    return mode;
 }
 
 function uiAccount(context) {
@@ -59295,10 +59291,6 @@ function uiMapData(context) {
             setLayer(which, !showsLayer(which));
         }
 
-        function clickEsri() {
-            toggleLayer('esri');
-        }
-
         function clickGpx() {
             toggleLayer('gpx');
         }
@@ -59463,9 +59455,11 @@ function uiMapData(context) {
             
             var content = this.pane.append('div')
                 .attr('class', 'left-content');
-            var doctitle = content.append('h3')
-                //.text('Downloading Esri Layer...');
+            
+            // title
+            content.append('h3')
                 .text('Import an Esri service by URL');
+            
             var body = content.append('div')
                 .attr('class', 'body');
                 
@@ -59492,10 +59486,23 @@ function uiMapData(context) {
                     setEsriLayer(this.parentElement.firstChild.value, esriDownloadAll);
                 });
             
+            // known iD presets
+            var preset = urlEntry.append('div')
+                .attr('class', 'preset');
+            preset.append('label')
+                .text('OpenStreetMap preset (select at left)');
+            preset.append('span');
+            
+            /*
+            // test having an import function
+            urlEntry.append('pre').append('code').text('function(osm) {\n  return "hello world";\n}');
+            hljs.initHighlightingOnLoad();
+            */
+            
             // radio buttons to decide how data is finalized on OSM
             var approvalPhase = urlEntry.append('div')
-                .attr('class', 'import-approval')
-                .append('h4').text('Review data before importing?');
+                .attr('class', 'import-approval');
+            approvalPhase.append('h4').text('Review data before importing?');
             
             var individualApproval = approvalPhase.append('label');
             individualApproval.append('input')
@@ -59512,7 +59519,7 @@ function uiMapData(context) {
                 .attr('type', 'radio')
                 .attr('name', 'approvalProcess')
                 .attr('value', 'all');
-            allApproval.append('span').text('Select all features by default');
+            allApproval.append('span').text('Import all features by default');
             
             body.append('table')
                     .attr('border', '1')
@@ -59529,8 +59536,8 @@ function uiMapData(context) {
                       var row = selectAll('.esri-table').append('tr');
                       var uniqNum = Math.floor(Math.random() * 10000);
 
-                      // the field setting the add-on key
-                      var keyfield = row.append('td').append('input')
+                      // the 'key' field, showing the new OSM tag key
+                      row.append('td').append('input')
                         //.attr('type', 'text')
                         .attr('class', 'import-key-' + uniqNum)
                         .on('change', function() {
@@ -59544,8 +59551,8 @@ function uiMapData(context) {
                           selectAll('.osm-key-' + uniqNum).attr('name', this.value);
                         });
                     
-                      // the field setting the add-on value
-                      var outfield = row.append('td').append('input')
+                      // the 'value' field setting the new OSM tag default value
+                      row.append('td').append('input')
                         .attr('type', 'text')
                         .attr('class', 'osm-key-' + uniqNum)
                         .on('change', function() {
@@ -59571,23 +59578,39 @@ function uiMapData(context) {
         
         function toggle() {
             // show and hide Esri data import pane
+            var hideMe = !selectAll('.esri-pane').classed('hide');
             selectAll('.esri-pane')
-                .classed('hide', !selectAll('.esri-pane').classed('hide'));
+                .classed('hide', hideMe);
+            
+            // show autocomplete of presets
+            var esriLayer = layers.layer('esri');
+            if (!esriLayer.hasData()) {
+                selectAll('.feature-list-pane').classed('inspector-hidden editor-overwrite', !hideMe);
+                if (!hideMe) {
+                    //console.log('show Esri, remove inspector-hidden, add editor-overwrite');
+                    selectAll('.inspector-wrap, .preset-list-pane, .entity-editor-pane')
+                        .classed('inspector-hidden', false)
+                        .classed('editor-overwrite', true);
+                    if (window.presetReloadFunction) {
+                        (window.presetReloadFunction)(true);
+                    }
+                }
+            }
+            if (hideMe) {
+                //console.log('hide Esri, remove editor-overwrite');
+                // allow normal menu use
+                selectAll('.editor-overwrite').classed('editor-overwrite', false);
+            }
         }
         
         function editEsriLayer() {
-            // prompt the user to enter an ArcGIS layer
+            // window allows user to enter an ArcGIS layer
             event.preventDefault();
-
-            var esriLayer = layers.layer('esri');
+            toggle();
             
-            // if the Esri layer is already loaded, resume editing that data
-            if (esriLayer.hasData()) {
-                toggle();
-            } else {
-                // this will open up an HTML/CSS window to enter the service URL
-                // and begin adding notes
-                toggle();            
+            // test that function has all geo-s
+            if (window.presetReloadFunction) {
+                (window.presetReloadFunction)(true);
             }
         }
 
@@ -59601,6 +59624,20 @@ function uiMapData(context) {
 
             // hide Esri Service URL input
             selectAll('.topurl').classed('hide', true);
+            selectAll('.editor-overwrite').classed('editor-overwrite', false);
+            
+            // if there is an OSM preset, add it to set tags
+            window.layerImports = {};
+            var presetType = selectAll('.esri-pane .preset span').text();
+            if (presetType) {
+                var setPreset = context.presets().item(presetType);
+                
+                // set tags
+                var tags = Object.keys(setPreset.tags);
+                for (var t$$1 = 0; t$$1 < tags.length; t$$1++) {
+                    window.layerImports['add_' + tags[t$$1]] = setPreset.tags[tags[t$$1]];
+                }
+            }
             
             refreshEsriLayer(template, downloadMax);
         }
@@ -64774,6 +64811,9 @@ function uiEntityEditor(context) {
     return utilRebind(entityEditor, dispatch$$1, 'on');
 }
 
+// TODO: make this less of a hack
+window.presetReloadFunction = null;
+
 function uiPresetList(context) {
     var dispatch$$1 = dispatch('choose'),
         id,
@@ -64781,7 +64821,7 @@ function uiPresetList(context) {
         autofocus = false;
 
 
-    function presetList(selection$$1) {
+    function presetList(selection$$1, seeAllGeos) {
         var entity = context.entity(id),
             geometry = context.geometry(id);
 
@@ -64790,7 +64830,15 @@ function uiPresetList(context) {
             geometry = 'point';
         }
 
-        var presets = context.presets().matchGeometry(geometry);
+        var presets = context.presets();
+        
+        // when the import menu is activated, show every kind of preset, regardless of geometry
+        if (!seeAllGeos && (selectAll('.esri-pane').classed('hide') || selectAll('.esri-pane .topurl').classed('hide'))) {
+            presets = presets.matchGeometry(geometry);
+        }
+        window.presetReloadFunction = function(seeAllGeos) {
+            presetList(selection$$1, seeAllGeos);
+        };
 
         selection$$1.html('');
 
@@ -65003,12 +65051,15 @@ function uiPresetList(context) {
 
         item.choose = function() {
             context.presets().choose(preset);
-
-            context.perform(
-                actionChangePreset(id, currentPreset, preset),
-                t('operations.change_tags.annotation')
-            );
-
+            
+            // avoid editing the last-selected option, if we are using preset UI for an Esri import
+            if (selectAll('.esri-pane').classed('hide') || selectAll('.esri-pane .topurl').classed('hide')) {
+                context.perform(
+                    actionChangePreset(id, currentPreset, preset),
+                    t('operations.change_tags.annotation')
+                );
+            }
+            
             dispatch$$1.call('choose', this, preset);
         };
 
@@ -65125,7 +65176,11 @@ function uiInspector(context) {
             showEditor = state === 'hover' ||
                 entity.isUsed(graph) ||
                 entity.isHighwayIntersection(graph);
-
+        
+        // make sure some content is in the preset pane
+        // TODO: is this actually helping?
+        presetPane.call(presetList);
+        
         if (showEditor) {
             wrap.style('right', '0%');
             editorPane.call(entityEditor);
@@ -65156,11 +65211,20 @@ function uiInspector(context) {
 
 
         function setPreset(preset) {
-            wrap.transition()
-                .styleTween('right', function() { return interpolate('-100%', '0%'); });
+            var esriLayer = context.layers().layer('esri');
+            if (!esriLayer.hasData() && !selectAll('.esri-pane').classed('hide')) {
+                // appear to be calling for this to be my preset
+                // TODO: better UI/UX
+                selectAll('.esri-pane .preset label').text('OpenStreetMap preset: ');
+                selectAll('.esri-pane .preset span').text(preset.id);
+            } else {
+                // standard preset behavior
+                wrap.transition()
+                    .styleTween('right', function() { return interpolate('-100%', '0%'); });
 
-            editorPane
-                .call(entityEditor.preset(preset));
+                editorPane
+                    .call(entityEditor.preset(preset));
+            }
         }
     }
 
@@ -67568,9 +67632,8 @@ function presetPreset(id, preset, fields) {
     preset = lodash.clone(preset);
 
     preset.id = id;
-    preset.fields = (preset.fields || []).map(getFields);
+    preset.fields = (preset.fields || []).map(getFields);    
     preset.geometry = (preset.geometry || []);
-
 
     function getFields(f) {
         return fields[f];
