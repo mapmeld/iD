@@ -73,7 +73,7 @@
                     "area": "エリアを円状に整形"
                 },
                 "not_closed": "エリアが閉じられていないため、円状に整形することができません",
-                "too_large": "ウェイの一部がダウンロードされていないため、円状に整形することができません。",
+                "too_large": "ウェイが完全には表示されていないため、円状に整形することができません。",
                 "connected_to_hidden": "非表示の地物に接続しているため、円状に整形することができません。"
             },
             "orthogonalize": {
@@ -88,7 +88,7 @@
                     "area": "エリアの角を90度に整形"
                 },
                 "not_squarish": "直交にできない辺があるため、角を直角に整形することができません",
-                "too_large": "ウェイの一部がダウンロードされていないため、四角形に整形することができません。",
+                "too_large": "ウェイが完全には表示されていないため、四角形に整形することができません。",
                 "connected_to_hidden": "非表示の地物に接続しているため、四角形に整形することができません。"
             },
             "straighten": {
@@ -101,18 +101,34 @@
             },
             "delete": {
                 "title": "削除",
-                "description": "オブジェクトを完全に削除",
-                "annotation": {
-                    "point": "ポイントを削除",
-                    "vertex": "ウェイ上のノードを削除",
-                    "line": "ライン削除",
-                    "area": "エリア削除",
-                    "relation": "リレーション削除",
-                    "multiple": "{n} 個のオブジェクトを削除"
+                "description": {
+                    "single": "この地物を完全に削除します。",
+                    "multiple": "これらの地物を完全に削除します。"
                 },
-                "incomplete_relation": "関連する地物データをすべてダウンロードしていないため、この地物を削除できません。",
-                "part_of_relation": "この地物は範囲外のリレーションの一部となっているため、削除できません。この地物を削除するには、まずリレーションを先に削除してください。",
-                "connected_to_hidden": "非表示の地物に接続しているため、削除できません。"
+                "annotation": {
+                    "point": "ポイントを削除しました。",
+                    "vertex": "ウェイ上のノードを削除しました。",
+                    "line": "ラインを削除しました。",
+                    "area": "エリアを削除しました。",
+                    "relation": "リレーションを削除しました。",
+                    "multiple": "{n}件の地物を削除しました。"
+                },
+                "too_large": {
+                    "single": "この地物は完全には表示されていないため、削除できません。",
+                    "multiple": "これらの地物は完全には表示されていないため、削除できません。"
+                },
+                "incomplete_relation": {
+                    "single": "この地物はまだ完全にはダウンロードされていないので、削除できません。",
+                    "multiple": "地物全体がダウンロードされていないため、削除することができません。"
+                },
+                "part_of_relation": {
+                    "single": "この地物は大きなリレーションの一部であるため、削除できません。まずリレーションから削除してください。",
+                    "multiple": "これらの地物は大きなリレーションの一部であるため、削除できません。まずリレーションから削除してください。"
+                },
+                "connected_to_hidden": {
+                    "single": "この地物は非表示の地物に接続しているため、削除できません。",
+                    "multiple": "これらの地物は非表示の地物に接続しているため、削除できません。"
+                }
             },
             "add_member": {
                 "annotation": "リレーションへメンバーを追加"
@@ -143,36 +159,104 @@
                 "key": "C",
                 "annotation": "{n} 個の地物をマージ",
                 "not_eligible": "地物情報がマージできません",
-                "not_adjacent": "地物同士が結合していないため、マージできません",
+                "not_adjacent": "短点が接続されていないため、地物をマージできません。",
                 "restriction": "\"{relation}\" リレーションに所属している地物が含まれているため、マージすることができません",
                 "incomplete_relation": "地物全体がダウンロードされていないため、マージさせることができません。",
                 "conflicting_tags": "タグの値が競合しているため、地物をマージできません"
             },
             "move": {
                 "title": "移動",
-                "description": "この地物を別の位置へ移動",
+                "description": {
+                    "single": "この地物を別の位置へ移動します。",
+                    "multiple": "これらの地物を別な位置へ移動します。"
+                },
                 "key": "M",
                 "annotation": {
                     "point": "ポイントを移動",
                     "vertex": "ウェイ上のノードを移動",
                     "line": "ラインの移動",
                     "area": "エリアの移動",
-                    "multiple": "複数オブジェクトの移動"
+                    "multiple": "複数の地物を移動しました。"
                 },
-                "incomplete_relation": "地物全体がダウンロードされていないため、移動させることができません。",
-                "too_large": "ウェイの一部がダウンロードされていないため、移動させることができません。",
-                "connected_to_hidden": "非表示の地物に接続しているため、移動することができません。"
+                "incomplete_relation": {
+                    "single": "この地物はまだ完全にはダウンロードされていないので、移動できません。",
+                    "multiple": "これらの地物はまだ完全にはダウンロードされていないので移動できません。"
+                },
+                "too_large": {
+                    "single": "この地物は完全には表示されていないため、移動できません。",
+                    "multiple": "これらの地物は完全には表示されていないため、移動できません。"
+                },
+                "connected_to_hidden": {
+                    "single": "この地物は非表示の地物に接続しているため、移動できません。",
+                    "multiple": "これらの地物は非表示の地物に接続しているため、移動できません。"
+                }
+            },
+            "reflect": {
+                "title": {
+                    "long": "長軸で反転",
+                    "short": "短軸で反転"
+                },
+                "description": {
+                    "long": {
+                        "single": "この地物を長軸で反転します。",
+                        "multiple": "これらの地物を長軸で反転します。"
+                    },
+                    "short": {
+                        "single": "この地物を短軸で反転します。",
+                        "multiple": "これらの地物を短軸で反転します。"
+                    }
+                },
+                "key": {
+                    "long": "T",
+                    "short": "Y"
+                },
+                "annotation": {
+                    "long": {
+                        "single": "長軸に沿って地物を反転します。",
+                        "multiple": "複数の地物を長軸で反転しました。"
+                    },
+                    "short": {
+                        "single": "短軸に沿って地物を反転します。",
+                        "multiple": "複数の地物を短軸で反転しました。"
+                    }
+                },
+                "incomplete_relation": {
+                    "single": "この地物はまだ完全にはダウンロードされていないので、反転できません。",
+                    "multiple": "これらの地物は完全にダウンロードされていないため、反転できません。"
+                },
+                "too_large": {
+                    "single": "この地物は完全には表示されていないため、反転できません。",
+                    "multiple": "これらの地物は完全には表示されていないため、反転できません。"
+                },
+                "connected_to_hidden": {
+                    "single": "この地物は非表示の地物に接続しているため、反転できません。",
+                    "multiple": "これらの地物は非表示の地物に接続しているため、反転できません。"
+                }
             },
             "rotate": {
                 "title": "回転",
-                "description": "オブジェクトの中心を軸点にして回転",
+                "description": {
+                    "single": "この地物を中心点で回転します。",
+                    "multiple": "これらの地物を中心点で回転します。"
+                },
                 "key": "R",
                 "annotation": {
                     "line": "ラインの回転",
-                    "area": "エリアの回転"
+                    "area": "エリアの回転",
+                    "multiple": "複数の地物を回転しました。"
                 },
-                "too_large": "ウェイの一部がダウンロードされていないため、回転させることができません。",
-                "connected_to_hidden": "非表示の地物に接続しているため、回転させることができません。"
+                "incomplete_relation": {
+                    "single": "この地物はまだ完全にはダウンロードされていないので、回転できません。",
+                    "multiple": "これらの地物はまだ完全にはダウンロードされていないので、回転させることができません。"
+                },
+                "too_large": {
+                    "single": "この地物は完全には表示されていないため、回転できません。",
+                    "multiple": "これらの地物は完全には表示されていないため、回転できません。"
+                },
+                "connected_to_hidden": {
+                    "single": "この地物は非表示の地物に接続しているため、回転できません。",
+                    "multiple": "これらの地物は非表示の地物に接続しているため、回転できません。"
+                }
             },
             "reverse": {
                 "title": "方向反転",
@@ -243,12 +327,12 @@
             "rateLimit": "APIは匿名の接続を制限しています。修正するにはログインしてください。"
         },
         "commit": {
-            "title": "編集結果を保存",
+            "title": "OpenStreetMapへアップロード",
             "description_placeholder": "投稿内容についての短い説明（必須）",
-            "message_label": "変更セットコメント",
+            "message_label": "変更セットのコメント",
             "upload_explanation": "あなたがアップロードした編集内容は、OpenStreetMapを利用しているすべてのユーザが閲覧できるようになります。",
             "upload_explanation_with_user": "編集した内容を {user} アカウントでアップロードし、OpenStreetMapを利用しているすべてのユーザが閲覧できるようにします。",
-            "save": "Save",
+            "save": "アップロード",
             "cancel": "キャンセル",
             "changes": "{count} 個の変更",
             "warnings": "注意",
@@ -311,14 +395,22 @@
             "back_tooltip": "地物の編集",
             "remove": "削除",
             "search": "検索",
-            "multiselect": "選択した項目",
+            "multiselect": "選択中の地物",
             "unknown": "不明",
             "incomplete": "<ダウンロード未完了>",
             "feature_list": "地物を検索",
             "edit": "地物を編集",
             "check": {
                 "yes": "はい",
-                "no": "いいえ"
+                "no": "いいえ",
+                "reverser": "方向を変更"
+            },
+            "radio": {
+                "structure": {
+                    "type": "種別",
+                    "default": "既定",
+                    "layer": "レイヤー"
+                }
             },
             "add": "追加",
             "none": "なし",
@@ -337,6 +429,7 @@
             "switch": "背景に切り替え",
             "custom": "カスタム",
             "custom_button": "カスタム背景の編集",
+            "custom_prompt": "タイルURLのテンプレートを入力してください。有効なトークンは Z/X/Y 用に {zoom}, {x}, {y} と、クアッドタイル用に {u} です。",
             "fix_misalignment": "画像の位置を調整",
             "imagery_source_faq": "この写真の出典元",
             "reset": "設定リセット",
@@ -426,12 +519,12 @@
         },
         "save": {
             "title": "保存",
-            "help": "編集内容をOpenStreetMapへ保存し、他ユーザへ公開",
+            "help": "変更を確認して、他のユーザーから見えるようにOpenStreetMapにアップロードしましょう。",
             "no_changes": "保存する変更はありません。",
             "error": "保存中にエラーが発生しました",
             "status_code": "サーバが状態コード{code}を返しました",
             "unknown_error_details": "インターネットに接続されているか、確認してください。",
-            "uploading": "編集内容をOpenStreetMapへアップロードしています",
+            "uploading": "OpenStreetMapへ変更をアップロード中...",
             "unsaved_changes": "編集内容が保存されていません",
             "conflict": {
                 "header": "競合している編集を解決",
@@ -444,13 +537,13 @@
                 "delete": "削除したままにする",
                 "download_changes": "または変更をダウンロードしてください。",
                 "done": "すべての競合が解決されました。",
-                "help": "あなたが変更したいくつかの地物を他のユーザーも変更しました。\n以下の各項目をクリックして、競合についての詳細を確認し、自分の変更を維持するか、他のユーザーの変更を採用するかを選択してください。\n"
+                "help": "あなたが変更した地物を他のユーザーも変更しました。\n競合についての詳細は、以下のそれぞれの地物をクリックし、あなたの変更と\n他のユーザーの変更のどちらを残したいか選択して下さい。\n"
             }
         },
         "merge_remote_changes": {
             "conflict": {
-                "deleted": "このオブジェクトは{user}さんが削除しました。",
-                "location": "このオブジェクトはあなたと{user}さんがそれぞれ移動しました。",
+                "deleted": "この地物は{user} さんが削除しました。",
+                "location": "この地物はあなたと{user} さんの両方が移動しました。",
                 "nodelist": "あなたと{user}さんがそれぞれノードを変更しました。",
                 "memberlist": "あなたと{user}さんがそれぞれリレーションのメンバーを変更しました。",
                 "tags": "あなたが<b>{tag}</b>タグを「{local}」で変更し、{user}さんが「{remote}」で変更しました。"
@@ -482,20 +575,29 @@
             "lose_changes": "OSMへアップロードされていない編集があります。投稿先サーバを切り替えると編集内容は破棄されます。投稿先を切り替えてよろしいですか？",
             "dev": "開発サーバ"
         },
+        "version": {
+            "whats_new": "iDエディタ更新 {version}"
+        },
         "tag_reference": {
             "description": "説明",
             "on_wiki": "{tag}: wiki.osm.org ",
             "used_with": "さらに詳しく:  {type}"
         },
         "validations": {
+            "disconnected_highway": "切断された道路",
+            "disconnected_highway_tooltip": "道路は他の道路か建物の入口に接続させてください。",
+            "old_multipolygon": "outerのウェイ上のマルチポリゴンタグ",
+            "old_multipolygon_tooltip": "このスタイルのマルチポリゴンは非推奨となっています。outerのウェイの代わりに親のマルチポリゴンにタグを割り当ててください。",
             "untagged_point": "タグなしポイント",
-            "untagged_line": "ラインにタグが付与されていません",
-            "untagged_area": "エリアにタグが付与されていません",
-            "many_deletions": "{n} オブジェクトを削除しています。本当に削除してよろしいですか？ 削除した結果はopenstreetmap.orgに反映されます。",
-            "tag_suggests_area": "ラインに {tag} タグが付与されています。エリアで描かれるべきです",
             "untagged_point_tooltip": "この点が表す地物の種類を選択してください。",
+            "untagged_line": "ラインにタグが付与されていません",
             "untagged_line_tooltip": "この直線が表す地物の種類を選択してください。",
+            "untagged_area": "エリアにタグが付与されていません",
             "untagged_area_tooltip": "このエリアが表す地物の種類を選択してください。",
+            "untagged_relation": "タグの無いリレーション",
+            "untagged_relation_tooltip": "このリレーションを表す地物の種別を選んでください。",
+            "many_deletions": "あなたは{n}件の地物を削除しようとしています。本当に実行して宜しいですか？他の人からも見える地図から削除することになります。",
+            "tag_suggests_area": "ラインに {tag} タグが付与されています。エリアで描かれるべきです",
             "deprecated_tags": "タグの重複: {tags}"
         },
         "zoom": {
@@ -505,13 +607,13 @@
         "cannot_zoom": "現在のモードでは、これ以上ズームアウトできません。",
         "full_screen": "フルスクリーンにする",
         "gpx": {
-            "local_layer": "ローカルマシン上のGPXファイル",
-            "drag_drop": "ページ上に .gpxファイルをドラッグ＆ドロップするか、画面右側のボタンをクリックしてください",
-            "zoom": "GPX軌跡へズーム",
-            "browse": ".gpxファイル追加"
+            "local_layer": "ローカル・ファイル",
+            "drag_drop": "ページ上に .gpx, .geojson, .kml ファイルをドラッグ＆ドロップするか、右のボタンを押して参照するかしてください",
+            "zoom": "レイヤにズーム",
+            "browse": "ファイルをブラウズ"
         },
         "mapillary_images": {
-            "tooltip": "Mapillary から路上からの写真を取得します",
+            "tooltip": "Mapillary から路上の写真を取得します",
             "title": "写真の重ね合わせ (Mapillary)"
         },
         "mapillary_signs": {
@@ -535,82 +637,102 @@
         },
         "intro": {
             "done": "完了",
+            "ok": "OK",
             "graph": {
-                "city_hall": "三川市役所",
-                "fire_department": "三川消防署",
-                "memory_isle_park": "平和祈念公園",
-                "riverwalk_trail": "岩川遊歩道",
-                "w_michigan_ave": "西岸広小路",
-                "e_michigan_ave": "東岸広小路",
-                "spring_st": "春風通り",
-                "scidmore_park": "大通り公園",
-                "petting_zoo": "大通り公園付属動物園",
-                "n_andrews_st": "北安藤通り",
-                "s_andrews_st": "南安藤通り",
-                "n_constantine_st": "北三川通り",
-                "s_constantine_st": "南三川通り",
-                "rocky_river": "岩川",
-                "railroad_dr": "鉄路通り",
-                "conrail_rr": "国有鉄道",
-                "st_joseph_river": "天神川",
-                "n_main_st": "北方街道",
-                "s_main_st": "南方街道",
-                "water_st": "水際通り",
-                "foster_st": "北方街道旧道",
-                "portage_river": "高瀬川",
-                "flower_st": "フラワーロード",
-                "elm_st": "アップルロード",
-                "walnut_st": "ドングリ通り",
-                "morris_ave": "もみじ横丁",
-                "east_st": "東通り",
-                "portage_ave": "高瀬通り"
+                "block_number": "4",
+                "city": "三川",
+                "county": "<addr:county 用の値>",
+                "district": "<value for addr:district>",
+                "hamlet": "<value for addr:hamlet>",
+                "neighbourhood": "<addr:neighbourhood 用の値>",
+                "postcode": "49093",
+                "province": "<addr:province 用の値>",
+                "quarter": "<addr:quarter 用の値>",
+                "state": "<value for addr:state>",
+                "subdistrict": "<value for addr:subdistrict>",
+                "suburb": "<addr:suburb 用の値>",
+                "countrycode": "jp",
+                "name": {
+                    "1st-avenue": "一条通り",
+                    "2nd-avenue": "二条通り",
+                    "4th-avenue": "四条通り",
+                    "5th-avenue": "五条通り",
+                    "6th-avenue": "六条通り",
+                    "7th-avenue": "七条通り",
+                    "8th-avenue": "八条通り",
+                    "9th-avenue": "九条通り",
+                    "10th-avenue": "十条通り",
+                    "11th-avenue": "十一条通り",
+                    "12th-avenue": "十二条通り",
+                    "adams-street": "アダムス通り",
+                    "pizza-hut": "ピザハット",
+                    "three-rivers-city-hall": "三川市役所",
+                    "three-rivers-elementary-school": "三川小学校",
+                    "three-rivers-fire-department": "三川消防署",
+                    "three-rivers-high-school": "三川高等学校",
+                    "three-rivers-middle-school": "三川中学校",
+                    "three-rivers-post-office": "三川郵便局",
+                    "three-rivers-public-library": "三川図書館",
+                    "three-rivers": "三川"
+                }
+            },
+            "welcome": {
+                "title": "ようこそ",
+                "welcome": "ようこそ！このウォークスルーではOpenStreetMap編集の基礎を学びます。",
+                "practice": "このウォークスルー内のデータは全て練習用で、ウォークスルー内で編集した内容は保存されません。",
+                "words": "このウォークスルーでは新しい言葉や概念をいくつか紹介します。新しい言葉を紹介する時には*イタリック体*を使います。",
+                "mouse": "マップの編集には任意の入力装置を使えますが、このウォークスルーは左右ボタンのあるマウスを使うことを想定しています。**マウスを接続したい場合は今すぐつないでからOKをクリックしてください。**",
+                "leftclick": "このチュートリアルでクリックまたはダブルクリックという場合には、左ボタンを意味しています。トラックパッド上では、シングルクリックまたは1本指タップのことになるでしょう。 **{num} 回左クリックしてください。**",
+                "rightclick": "右クリックという場合には、トラックパッドではコントロール＋クリック あるいは2本指タップに相当するでしょう。右クリックと同じに使える「メニュー」キーのついたキーボードもあります。**{num} 回右クリックしてください。**",
+                "chapters": "ここまでとても良いですね！行き詰まったら下にあるボタンで各章をいつでもスキップしたりやり直したりすることができます。それでは始めましょう！**'{next}' をクリックして続けます。**"
             },
             "navigation": {
                 "title": "ナビゲーション",
-                "drag": "地図編集画面には、航空写真などの背景画像と重なってOpenStreetMapのデータが表示されます。ウェブで公開されている他の地図と同様、クリックした状態でカーソルを移動させることで表示位置を移動させることができます。**地図をクリックして移動させてみてください！**",
-                "select": "地図上の情報は、ポイント、ライン、エリアの3つの方法のいずれかで表現されています。地物をクリックすることで、対象を選択することができます。**画面上のポイントを選択してみましょう。**",
-                "pane": "地物が選択されると、その地物の詳細情報が表示されます。詳細情報には、地物の種類をあらわす大項目と、その他詳細情報 (名称や住所等) が表示されます。**画面右上の {button} ボタンを押して、詳細情報編集ウィンドウを閉じてください。**",
-                "search": "現在表示されている地物、あるいは全世界を対象に検索を行うことも可能です。**'{name}'で検索してみてください。**",
-                "choose": "**検索結果から {name} を選択してみましょう。**",
-                "chosen": "素晴らしい！ {name} が選択されました。 **{button}ボタンを押して地物の編集を終了してください。**"
+                "drag": "メインのマップエリアの背景上にOpenStreetMapのデータが表示されます。{br}マウスの左ボタンを押したままマウスを動かすとマップをドラッグできます。キーボードにある矢印キーでも動かすことができます。**マップをドラッグしてみよう！**",
+                "zoom": "マウスホイールやトラックパッドをスクロールしたり、{plus} / {minus} ボタンをクリックすると、ズームインしたりズームアウトしたりできます。**マップをズームしてみよう！**",
+                "features": "*地物（feature）*という言葉はマップ上に表されるものを表現するのに使われます。実世界のあらゆるものはOpenStreetMap上に地物としてマップすることができます。",
+                "points_lines_areas": "マップの地物は*ポイント（点）、ライン（線）またはエリア（面）*を使って表されます。",
+                "nodes_ways": "OpenStreetMapでは、ポイントはよく*ノード*と呼ばれ、ラインやエリアは*ウェイ*と呼ばれます。",
+                "click_townhall": "マップ上の地物は全てクリックして選択できます。**ポイントをクリックして選択してみましょう。**",
+                "selected_townhall": "すばらしい！ポイントが選択されました。選択された地物はその周囲が点滅します。",
+                "editor_townhall": "地物が選択されると、*地物エディタ*がマップの脇に表示されます。",
+                "preset_townhall": "地物エディタの先頭部分にその地物の種別が表示されます。このポイントは{preset}です。",
+                "fields_townhall": "地物エディタの中央部には*項目*があり、名前や住所といった地物の属性が表示されます。",
+                "close_townhall": "**エスケープキーか、上部角にある{button} ボタンをクリックして地物エディタを閉じます。**",
+                "search_street": "現在の画面で、あるいは全世界で地物を探すこともできます。**'{name}'を探してみましょう。**",
+                "choose_street": "**一覧から{name}を選んで選択してみましょう。**",
+                "selected_street": "いいですね！{name}が選択されました。",
+                "editor_street": "街路用に表示された項目は役場用に表示された項目とは異なっています。{br}この選択された街路用に、地物エディタは'{field1}' や'{field2}'といった項目を表示します。**エスケープキーまたは{button}ボタンで地物エディタを閉じます。**",
+                "play": "マップを動かしたり他の地物をいくつかクリックしてOpenStreetmapにどのようなものが追加できるのか見てみてください。**次の章へ行く準備ができたら'{next}'をクリックしてください。**"
             },
             "points": {
                 "title": "ポイント",
-                "add": "ポイントは、店舗やレストラン、記念碑など、特定の一点を表現します。これにより、特定の場所や地点に対して、情報を追加してゆくことが可能となります。**{button}ポイントボタンをクリックして、ポイントを追加してみましょう。**",
-                "place": "地図の上のどこかをクリックすることで、ポイントを追加することができます。**建物の上にポイントを追加してみましょう。**",
-                "search": "ポイントではさまざまな地物情報を表現することが可能です。 今回追加したポイントは喫茶店をあらわします。** '{name}' を選んでみましょう**",
-                "choose": "**リストから 喫茶店 を選択してください**",
-                "describe": "ポイントが喫茶店としてタグ付けされました。更に詳細な情報を追加することもできます。**喫茶店の名称を追加してみましょう。**",
-                "close": "タグ情報の編集ウィンドウへ入力した情報は、自動的に保存されます。ウィンドウを閉じるには、チェックボタンをクリックしてください。** {button} ボタンをクリックして、タグ情報の編集ウィンドウを閉じてみましょう**",
-                "reselect": "多くの場合ポイントはすでに存在しているでしょう。しかし、既存のポイントは間違いがあったり情報が不足している可能性があります。その場合、既存のポイントを編集できます。 **今作成したポイントをクリックして選択してみましょう。**",
-                "fixname": "**名称を変更し、{button} ボタンをクリックし編集ウィンドウを閉じましょう。**",
-                "reselect_delete": "マップ上のすべての地物は削除可能です。**作成したポイントをクリックして選択してみましょう。**",
-                "delete": "ポイントの周囲に、その地物に対して行うことができる操作が、削除することも含めてすべて表示されます。** {button} ボタンをクリックして、ポイントを削除してみましょう。**"
+                "add_point": "*ポイント*はお店、レストラン、記念碑といったものを表すのに使うことができます。{br}これらには特定の位置をマークして、そこにが何があるのかを記述します。**{button} ポイントボタンをクリックして新しいポイントを追加します。**",
+                "place_point": "マップ上に新しいポイントを置くには、そのポイントが行くべき位置にマウスカーソルを置き、左クリックまたはスペースバーを押します。**マウスポインタをこのビルの上に移動し、左クリックまたはスペースバーを押します。**",
+                "search_cafe": "他にもポイントで表せる地物はたくさんあります。今回追加したポイントは喫茶店です。**'{preset}'を探してみましょう。**",
+                "choose_cafe": "**一覧から{preset}を選んでみましょう。**",
+                "feature_editor": "これでポイントは喫茶店としてマークされました。地物エディタを使えば、喫茶店についての情報をもっと追加することができます。",
+                "add_name": "OpenStreetMapでは、全ての項目はオプションで、よく分からない場合は項目を空白のままにしておいても構いません。{br}この喫茶店について、地元の知識を持っているつもりで、あなたがその名前を知っているということにしましょう。**喫茶店の名前を追加してみましょう。**",
+                "add_close": "地物エディタはあなたが変更した内容を全て自動的に記憶しています。**名前を追加し終わったら、エスケープケープキーかリターンキー、もしくは{button}ボタンをクリックして地物エディタを閉じてください。**",
+                "reselect": "地物が既に存在していることはよくありますが、間違っていたり不完全であることがあります。既にあるポイントは修正することができます。**今作成した喫茶店をクリックして選択してください。**",
+                "update": "この喫茶店についてより詳細に埋めてみましょう。名前を変えたり、料理を追加したり、住所を追加したりすることができます。**喫茶店の詳細情報を変えてみましょう。**",
+                "update_close": "**喫茶店の更新が終わったら、エスケープキーまたはリターンキー、あるいは{button} ボタンをクリックして地物エディタを閉じます。**",
+                "rightclick": "地物の上で右クリックすると*編集メニュー*が現れます。そこには実行できる編集操作の一覧が表示されます。**右クリックしてあなたが作成したポイントを選択し、編集メニューを表示されてみましょう。**",
+                "delete": "実世界に存在しない地物は削除して構いません。{br}OpenStreetMapで地物を削除すると、みんなが使っているマップから消えることになります。そのため削除する前にその地物が確実に存在しないことを確認する必要があります。** {button}ボタンをクリックしてポイントを削除してみましょう。**",
+                "undo": "自分の編集内容をOpenStreetMapに保存するまでは、いつでも変更を取り消すことができます。**{button}ボタンをクリックして削除を取り消し、ポイントを元に戻してみましょう。**",
+                "play": "さあ、これであなたはポイントの作成・編集方法が分かりました。もう少しポイントの作成方法を練習してみましょう！**次の章に進む準備ができたら、'{next}'をクリックしてください。**"
             },
             "areas": {
-                "title": "エリア",
-                "add": "エリアは、湖や建物、住宅区域などの地物の境界線を表現するために使われます。エリアを使うことで、単純にポイントデータを配置するよりも詳しく地物をマッピングできることができます。 ** {button} ボタンをクリックして、新しいエリアを描いてみましょう。**",
-                "corner": "複数のポイントを描くことで、エリアの境界線を表現することができます。**エリアを作成して、児童公園の形をなぞってみましょう。**",
-                "place": "ノードを描くことで、エリアを表現することができます。エリアの描画を完了するには、描き始めたノードをもう一度クリックしてください。**エリアを作成して、児童公園を描いてみましょう。**",
-                "search": "** '{name}' を検索してみましょう **",
-                "choose": "**リストから 児童公園 を選択してください**",
-                "describe": "**児童公園の名称を追加し、{button}ボタンをクリックして編集ウィンドウを閉じましょう。**"
+                "title": "エリア"
             },
             "lines": {
-                "title": "ライン",
-                "add": "ラインは道路や線路、河川などの地物を表す際に使用されます。**新しいラインを追加するため、{button}  ライン ボタンをクリックしてみましょう。**",
-                "start": "**地図上をクリックすることで、ラインの描画が開始されます。まずは道路を描いてみましょう。**",
-                "intersect": "ライン上をクリックすることで、その位置にノードを追加することができます。ラインを描いている途中でも、必要な場合は表示位置をドラッグして移動させることが可能です。道路などのほとんどのラインは、より大きなラインとどこかで接続しています。経路探索アプリケーションを正常に動作させるため、ラインは他のラインと正常に接続されていることが重要です。** {name} をクリックして、2本のラインの交差点を作成してみましょう。**",
-                "finish": "最後のノードをもう一度クリックすることで、ラインの描画を完了させることができます。**道路の描画を完了させましょう。**",
-                "road": "**リストから 道路 を選択してください**",
-                "residential": "道路にはいくつもの種類がありますが、最も頻繁に描くことになるのは居住区域内道路です。**道路種別から居住区域内道路を選択してください。**",
-                "describe": "**道路に名称を付け、{button}ボタンをクリックして編集ウィンドウを閉じましょう。**",
-                "restart": "道路は{name}に接続する必要があります。",
-                "wrong_preset": "選択したウェイが住宅道路ではありません。**クリックしてもう一度選択してください**"
+                "title": "ライン"
+            },
+            "buildings": {
+                "title": "建物"
             },
             "startediting": {
                 "title": "編集をはじめる",
-                "help": "{button} （ヘルプ）ボタンをクリックする事で、このチュートリアルを再確認したり、追加の文書を見る事が出来ます。",
                 "save": "変更内容はこまめに保存するよう気をつけてください！",
                 "start": "マッピング開始！"
             }
@@ -627,28 +749,37 @@
                     "name": "ゴルフ"
                 },
                 "category-landuse": {
-                    "name": "土地利用"
+                    "name": "土地利用の地物"
+                },
+                "category-natural-area": {
+                    "name": "自然の地物"
+                },
+                "category-natural-line": {
+                    "name": "自然の地物"
+                },
+                "category-natural-point": {
+                    "name": "自然の地物"
                 },
                 "category-path": {
-                    "name": "歩道"
+                    "name": "歩道・小道の地物"
                 },
                 "category-rail": {
-                    "name": "線路"
+                    "name": "線路の地物"
                 },
                 "category-restriction": {
                     "name": "進行方向制限"
                 },
                 "category-road": {
-                    "name": "車道"
+                    "name": "道路の地物"
                 },
                 "category-route": {
                     "name": "ルート"
                 },
                 "category-water-area": {
-                    "name": "水域"
+                    "name": "水域の地物"
                 },
                 "category-water-line": {
-                    "name": "水路関連"
+                    "name": "水路の地物"
                 }
             },
             "fields": {
@@ -702,21 +833,36 @@
                 "address": {
                     "label": "住所",
                     "placeholders": {
-                        "city": "市町村名",
+                        "block_number": "街区符号",
+                        "block_number!jp": "街区符号",
+                        "city": "市町村",
+                        "city!jp": "市町村と東京23区",
+                        "city!vn": "市/町",
                         "conscriptionnumber": "123",
-                        "country": "郡",
+                        "country": "国",
+                        "county": "郡",
+                        "county!jp": "郡",
                         "district": "地区",
+                        "district!vn": "Arrondissement/町/地区",
                         "floor": "階",
                         "hamlet": "Hamlet",
                         "housename": "地番",
-                        "housenumber": "123",
+                        "housenumber": "住居番号",
+                        "housenumber!jp": "住居番号/番地と枝番",
+                        "neighbourhood": "字",
+                        "neighbourhood!jp": "丁目/字/小字",
                         "place": "地名",
                         "postcode": "郵便番号",
-                        "province": "県",
+                        "province": "都道府県",
+                        "province!jp": "都道府県",
+                        "quarter": "大字",
+                        "quarter!jp": "大字/町",
                         "state": "州",
                         "street": "所属する街路名",
                         "subdistrict": "Subdistrict",
-                        "suburb": "区"
+                        "subdistrict!vn": "Ward/Commune/Townlet",
+                        "suburb": "区",
+                        "suburb!jp": "区"
                     }
                 },
                 "admin_level": {
@@ -765,6 +911,15 @@
                 "amenity": {
                     "label": "種類"
                 },
+                "animal_boarding": {
+                    "label": "対象となる動物"
+                },
+                "animal_breeding": {
+                    "label": "対象となる動物"
+                },
+                "animal_shelter": {
+                    "label": "対象となる動物"
+                },
                 "area/highway": {
                     "label": "道路の種類"
                 },
@@ -782,6 +937,20 @@
                 },
                 "barrier": {
                     "label": "タイプ"
+                },
+                "bath/open_air": {
+                    "label": "露天風呂"
+                },
+                "bath/sand_bath": {
+                    "label": "砂湯"
+                },
+                "bath/type": {
+                    "label": "タイプ",
+                    "options": {
+                        "foot_bath": "足湯",
+                        "hot_spring": "温泉（日本以外）",
+                        "onsen": "温泉（日本）"
+                    }
                 },
                 "beauty": {
                     "label": "店舗種類"
@@ -819,6 +988,24 @@
                 "building_area": {
                     "label": "建物"
                 },
+                "bunker_type": {
+                    "label": "種類"
+                },
+                "camera/direction": {
+                    "label": "監視カメラの向き(時計回りの角度)",
+                    "placeholder": "45, 90, 180, 270"
+                },
+                "camera/mount": {
+                    "label": "監視カメラの設置位置"
+                },
+                "camera/type": {
+                    "label": "監視カメラの種類",
+                    "options": {
+                        "dome": "ドーム型",
+                        "fixed": "固定式",
+                        "panning": "可動式"
+                    }
+                },
                 "capacity": {
                     "label": "収容数",
                     "placeholder": "50, 100, 200..."
@@ -844,6 +1031,9 @@
                         "WSW": "西南西"
                     }
                 },
+                "castle_type": {
+                    "label": "種類"
+                },
                 "clock_direction": {
                     "label": "方向",
                     "options": {
@@ -851,11 +1041,21 @@
                         "clockwise": "右回り"
                     }
                 },
+                "club": {
+                    "label": "タイプ"
+                },
                 "collection_times": {
                     "label": "収集時刻"
                 },
+                "communication_multi": {
+                    "label": "通信回線の用途"
+                },
                 "construction": {
                     "label": "種類"
+                },
+                "contact/webcam": {
+                    "label": "ウェブカメラのURL",
+                    "placeholder": "http://example.com/"
                 },
                 "content": {
                     "label": "中身"
@@ -870,16 +1070,19 @@
                     "label": "タイプ"
                 },
                 "crop": {
-                    "label": "作物"
+                    "label": "収穫物"
                 },
                 "crossing": {
                     "label": "種類"
                 },
                 "cuisine": {
-                    "label": "料理の種類"
+                    "label": "料理"
                 },
                 "currency_multi": {
                     "label": "通貨の種類"
+                },
+                "cycle_network": {
+                    "label": "ネットワーク"
                 },
                 "cycleway": {
                     "label": "自転車通行帯",
@@ -959,6 +1162,10 @@
                 "elevation": {
                     "label": "標高"
                 },
+                "email": {
+                    "label": "メールアドレス",
+                    "placeholder": "example@example.com"
+                },
                 "emergency": {
                     "label": "緊急設備"
                 },
@@ -974,6 +1181,18 @@
                 },
                 "fee": {
                     "label": "利用料金"
+                },
+                "fence_type": {
+                    "label": "柵の種類"
+                },
+                "fire_hydrant/position": {
+                    "label": "位置",
+                    "options": {
+                        "green": "緑地",
+                        "lane": "道路上",
+                        "parking_lot": "駐車場",
+                        "sidewalk": "歩道"
+                    }
                 },
                 "fire_hydrant/type": {
                     "label": "タイプ",
@@ -1009,7 +1228,7 @@
                     "label": "方式"
                 },
                 "generator/source": {
-                    "label": "情報参照元"
+                    "label": "エネルギー源"
                 },
                 "generator/type": {
                     "label": "タイプ"
@@ -1017,6 +1236,9 @@
                 "golf_hole": {
                     "label": "参照",
                     "placeholder": "ホール (1-18)"
+                },
+                "grape_variety": {
+                    "label": "ブドウの品種"
                 },
                 "handicap": {
                     "label": "ハンディキャップ",
@@ -1033,6 +1255,9 @@
                 },
                 "historic": {
                     "label": "タイプ"
+                },
+                "historic/civilization": {
+                    "label": "文明"
                 },
                 "hoops": {
                     "label": "輪の数",
@@ -1060,6 +1285,9 @@
                 "information": {
                     "label": "タイプ"
                 },
+                "inscription": {
+                    "label": "碑文の文面"
+                },
                 "internet_access": {
                     "label": "インターネット環境",
                     "options": {
@@ -1072,6 +1300,9 @@
                 },
                 "internet_access/fee": {
                     "label": "インターネット接続利用料金"
+                },
+                "internet_access/ssid": {
+                    "label": "SSID (ネットワーク名)"
                 },
                 "kerb": {
                     "label": "縁石の段差"
@@ -1153,6 +1384,10 @@
                 "map_type": {
                     "label": "タイプ"
                 },
+                "maxheight": {
+                    "label": "高さ制限",
+                    "placeholder": "4, 4.5, 5, 14'0\", 14'6\", 15'0\""
+                },
                 "maxspeed": {
                     "label": "最高速度",
                     "placeholder": "40, 50, 60..."
@@ -1207,6 +1442,7 @@
                     "label": "ネットワーク"
                 },
                 "network_bicycle": {
+                    "label": "ネットワーク種別",
                     "options": {
                         "icn": "国際",
                         "lcn": "地域",
@@ -1265,6 +1501,9 @@
                 },
                 "operator": {
                     "label": "管理主体"
+                },
+                "outdoor_seating": {
+                    "label": "屋外の席"
                 },
                 "par": {
                     "label": "パー",
@@ -1340,6 +1579,9 @@
                 "place": {
                     "label": "タイプ"
                 },
+                "plant": {
+                    "label": "植物"
+                },
                 "population": {
                     "label": "人口"
                 },
@@ -1348,6 +1590,12 @@
                 },
                 "power_supply": {
                     "label": "電源"
+                },
+                "produce": {
+                    "label": "生産物"
+                },
+                "product": {
+                    "label": "製品"
                 },
                 "railway": {
                     "label": "路線種別"
@@ -1419,6 +1667,9 @@
                 "service/bicycle": {
                     "label": "サービス"
                 },
+                "service/vehicle": {
+                    "label": "サービス車両"
+                },
                 "service_rail": {
                     "label": "サービスの種類",
                     "options": {
@@ -1427,6 +1678,9 @@
                         "spur": "引き込み線",
                         "yard": "車両基地"
                     }
+                },
+                "service_times": {
+                    "label": "営業時間"
                 },
                 "shelter": {
                     "label": "避難所"
@@ -1445,12 +1699,12 @@
                     "options": {
                         "dedicated": "喫煙者向け（例: スモーカーズクラブ）",
                         "isolated": "完全分煙",
-                        "no": "禁煙",
+                        "no": "すべて禁煙",
                         "outside": "屋外のみ喫煙可",
                         "separated": "同室内分煙",
-                        "yes": "喫煙可"
+                        "yes": "すべて喫煙可"
                     },
-                    "placeholder": "いいえ、分けた、はい..."
+                    "placeholder": "禁煙, 分煙, 喫煙可..."
                 },
                 "smoothness": {
                     "label": "スムーズさ",
@@ -1466,9 +1720,11 @@
                     },
                     "placeholder": "ローラースケートなど, 二輪車・四輪車, オフロード車…"
                 },
+                "social_facility": {
+                    "label": "種類"
+                },
                 "social_facility_for": {
-                    "label": "施設の対象者",
-                    "placeholder": "ホームレス, 障碍者, 孤児など"
+                    "label": "対象者"
                 },
                 "source": {
                     "label": "情報源"
@@ -1477,13 +1733,22 @@
                     "label": "スポーツ"
                 },
                 "sport_ice": {
-                    "label": "スポーツ"
+                    "label": "種目"
                 },
-                "sport_racing": {
-                    "label": "スポーツ"
+                "sport_racing_motor": {
+                    "label": "種目"
+                },
+                "sport_racing_nonmotor": {
+                    "label": "種目"
                 },
                 "stars": {
                     "label": "星の数"
+                },
+                "start_date": {
+                    "label": "供用開始日"
+                },
+                "step_count": {
+                    "label": "段数"
                 },
                 "stop": {
                     "label": "一時停止の種類",
@@ -1518,6 +1783,20 @@
                 "surface": {
                     "label": "路面状態"
                 },
+                "surveillance": {
+                    "label": "監視の種類"
+                },
+                "surveillance/type": {
+                    "label": "監視方法",
+                    "options": {
+                        "ALPR": "自動ナンバープレート読み取り機",
+                        "camera": "監視カメラ",
+                        "guard": "警備員"
+                    }
+                },
+                "surveillance/zone": {
+                    "label": "監視ゾーン"
+                },
                 "tactile_paving": {
                     "label": "点字ブロック"
                 },
@@ -1539,11 +1818,17 @@
                         "pitlatrine": "汲み取り式"
                     }
                 },
+                "toll": {
+                    "label": "料金"
+                },
+                "tomb": {
+                    "label": "種類"
+                },
                 "tourism": {
                     "label": "種類"
                 },
                 "tower/construction": {
-                    "label": "工事中",
+                    "label": "建築様式",
                     "placeholder": "支線塔、格子塔、擬態させた塔、etc"
                 },
                 "tower/type": {
@@ -1595,6 +1880,9 @@
                         "street": "5～20m（16～65フィート）"
                     }
                 },
+                "wall": {
+                    "label": "種類"
+                },
                 "water": {
                     "label": "種類"
                 },
@@ -1627,26 +1915,39 @@
                     "terms": "住所"
                 },
                 "advertising/billboard": {
-                    "name": "広告用看板"
+                    "name": "広告用看板",
+                    "terms": "掲示板"
                 },
                 "aerialway": {
                     "name": "索道"
                 },
                 "aerialway/cable_car": {
                     "name": "交走式ロープウェイ",
-                    "terms": "ケーブルカー, インクライン, ロープウェイ, ロープウェー, ゴンドラ, ゴンドラリフト, 索道"
+                    "terms": "ロープウェイ, ロープウェー, ゴンドラ, ゴンドラリフト, 索道"
                 },
                 "aerialway/chair_lift": {
                     "name": "チェアリフト",
                     "terms": "チェアリフト, 椅子リフト, いすリフト"
                 },
+                "aerialway/drag_lift": {
+                    "name": "ドラッグリフト",
+                    "terms": "ドラッグリフト,牽引リフト"
+                },
                 "aerialway/gondola": {
                     "name": "循環式ロープウェイ",
                     "terms": "ゴンドラ, ロープウェイ, ロープウェー, ゴンドラリフト, 索道"
                 },
+                "aerialway/goods": {
+                    "name": "貨物索道",
+                    "terms": "貨物ロープウェイ"
+                },
                 "aerialway/magic_carpet": {
                     "name": "マジックカーペットリフト",
-                    "terms": "マジックカーペットリフト"
+                    "terms": "マジックカーペットリフト, ベルトコンベア"
+                },
+                "aerialway/mixed_lift": {
+                    "name": "混合リフト",
+                    "terms": "混合リフト"
                 },
                 "aerialway/platter": {
                     "name": "プラッターリフト",
@@ -1654,7 +1955,7 @@
                 },
                 "aerialway/pylon": {
                     "name": "索道用支柱",
-                    "terms": "索道用支柱, パイロン"
+                    "terms": "索道用支柱, パイロン, 柱"
                 },
                 "aerialway/rope_tow": {
                     "name": "ロープタウリフト",
@@ -1680,8 +1981,8 @@
                     "terms": "エプロン"
                 },
                 "aeroway/gate": {
-                    "name": "搭乗口",
-                    "terms": "搭乗口, 搭乗ゲート"
+                    "name": "空港ゲート",
+                    "terms": "空港ゲート"
                 },
                 "aeroway/hangar": {
                     "name": "格納庫",
@@ -1689,7 +1990,7 @@
                 },
                 "aeroway/helipad": {
                     "name": "ヘリパッド",
-                    "terms": "ヘリパッド, ヘリコプター発着所"
+                    "terms": "ヘリパッド, ヘリコプター発着所, ヘリポート"
                 },
                 "aeroway/runway": {
                     "name": "滑走路",
@@ -1701,10 +2002,22 @@
                 },
                 "aeroway/terminal": {
                     "name": "空港ターミナル",
-                    "terms": "空港ターミナル, ターミナル, 空港"
+                    "terms": "空港ターミナル"
                 },
                 "amenity": {
                     "name": "施設"
+                },
+                "amenity/animal_boarding": {
+                    "name": "ペットホテル",
+                    "terms": "ペットホテル"
+                },
+                "amenity/animal_breeding": {
+                    "name": "動物繁殖施設",
+                    "terms": "動物繁殖施設, ブリーダー"
+                },
+                "amenity/animal_shelter": {
+                    "name": "アニマルシェルター",
+                    "terms": "アニマルシェルター"
                 },
                 "amenity/arts_centre": {
                     "name": "アートセンター",
@@ -1728,7 +2041,7 @@
                 },
                 "amenity/bench": {
                     "name": "ベンチ",
-                    "terms": "ベンチ"
+                    "terms": "ベンチ, 椅子, いす, 腰掛け"
                 },
                 "amenity/bicycle_parking": {
                     "name": "駐輪場",
@@ -1756,7 +2069,7 @@
                 },
                 "amenity/bus_station": {
                     "name": "バスターミナル",
-                    "terms": "バスターミナル"
+                    "terms": "バスターミナル, バス停, バスステーション"
                 },
                 "amenity/cafe": {
                     "name": "喫茶店",
@@ -1768,7 +2081,7 @@
                 },
                 "amenity/car_sharing": {
                     "name": "カーシェアリング",
-                    "terms": "カーシェアリング"
+                    "terms": "カーシェアリング, レンタカー"
                 },
                 "amenity/car_wash": {
                     "name": "車の洗浄",
@@ -1815,8 +2128,11 @@
                     "terms": "裁判所"
                 },
                 "amenity/coworking_space": {
-                    "name": "コワーキングスペース",
-                    "terms": "コワーキングスペース,共同オフィス"
+                    "name": "コワーキングスペース"
+                },
+                "amenity/crematorium": {
+                    "name": "火葬場",
+                    "terms": "火葬場"
                 },
                 "amenity/dentist": {
                     "name": "歯医者",
@@ -1824,7 +2140,7 @@
                 },
                 "amenity/doctors": {
                     "name": "医院",
-                    "terms": "町医者, 診療所"
+                    "terms": "医院, 町医者, 診療所, 医者"
                 },
                 "amenity/dojo": {
                     "name": "道場",
@@ -1833,6 +2149,10 @@
                 "amenity/drinking_water": {
                     "name": "水飲み場",
                     "terms": "水飲み場, 水道, 飲用水, 飲料水, 飲み水, 蛇口"
+                },
+                "amenity/driving_school": {
+                    "name": "自動車教習所",
+                    "terms": "Driving School, ドライビングスクール, 教習所, 自動車, 自動車教習所, 車, 学校"
                 },
                 "amenity/embassy": {
                     "name": "大使館",
@@ -1844,11 +2164,15 @@
                 },
                 "amenity/ferry_terminal": {
                     "name": "フェリー乗り場",
-                    "terms": "フェリーターミナル, 渡船"
+                    "terms": "フェリーターミナル, 渡船, 船着場"
                 },
                 "amenity/fire_station": {
                     "name": "消防署",
-                    "terms": "消防署"
+                    "terms": "消防署, 消防団, 火消し"
+                },
+                "amenity/food_court": {
+                    "name": "フードコート",
+                    "terms": "フードコート"
                 },
                 "amenity/fountain": {
                     "name": "噴水",
@@ -1879,7 +2203,8 @@
                     "terms": "アイスクリームパーラー"
                 },
                 "amenity/internet_cafe": {
-                    "name": "インターネットカフェ"
+                    "name": "インターネットカフェ",
+                    "terms": "ネカフェ"
                 },
                 "amenity/kindergarten": {
                     "name": "保育園/幼稚園の敷地",
@@ -1895,11 +2220,14 @@
                 },
                 "amenity/motorcycle_parking": {
                     "name": "オートバイの駐車場",
-                    "terms": "バイクの駐車場, 二輪駐車場, 二輪駐輪場"
+                    "terms": "バイクの駐車場, 二輪駐車場, 二輪駐輪場, 駐車場, 駐輪場"
                 },
                 "amenity/nightclub": {
                     "name": "ナイトクラブ",
                     "terms": "ナイトクラブ"
+                },
+                "amenity/nursing_home": {
+                    "name": "介護施設"
                 },
                 "amenity/parking": {
                     "name": "駐車場",
@@ -1910,12 +2238,16 @@
                     "terms": "駐車場の出入口"
                 },
                 "amenity/parking_space": {
-                    "name": "駐車場",
-                    "terms": "駐車場, 駐車スペース"
+                    "name": "駐車区画",
+                    "terms": "駐車区画, 駐車スペース"
+                },
+                "amenity/pavilion": {
+                    "name": "東屋",
+                    "terms": "東屋"
                 },
                 "amenity/pharmacy": {
                     "name": "薬局",
-                    "terms": "調剤, 調剤薬局, 薬局, 薬店"
+                    "terms": "調剤, 調剤薬局, 薬局, 薬店, ドラッグストア, 処方箋"
                 },
                 "amenity/place_of_worship": {
                     "name": "宗教施設",
@@ -1961,6 +2293,10 @@
                     "name": "居酒屋",
                     "terms": "パブ, 居酒屋, 焼き鳥屋"
                 },
+                "amenity/public_bath": {
+                    "name": "公衆浴場",
+                    "terms": "銭湯, 大衆浴場, 温泉"
+                },
                 "amenity/public_bookcase": {
                     "name": "公共の本棚",
                     "terms": "公共の本棚"
@@ -1974,7 +2310,8 @@
                     "terms": "リサイクルボックス, 回収箱, リサイクル"
                 },
                 "amenity/recycling_centre": {
-                    "name": "リサイクルセンター"
+                    "name": "リサイクルセンター",
+                    "terms": "リサイクルセンター"
                 },
                 "amenity/register_office": {
                     "name": "登記所"
@@ -2011,6 +2348,10 @@
                     "name": "ホームレス緊急一時宿泊施設",
                     "terms": "ホームレス緊急一時宿泊施設, ホームレスシェルター, 簡易宿泊所"
                 },
+                "amenity/social_facility/nursing_home": {
+                    "name": "介護施設",
+                    "terms": "介護施設, 老人ホーム"
+                },
                 "amenity/studio": {
                     "name": "スタジオ",
                     "terms": "スタジオ"
@@ -2042,6 +2383,10 @@
                     "name": "大学の敷地",
                     "terms": "大学の敷地, キャンパス"
                 },
+                "amenity/vending_machine": {
+                    "name": "自動販売機",
+                    "terms": "自動販売機, 自販機"
+                },
                 "amenity/vending_machine/cigarettes": {
                     "name": "たばこ自動販売機",
                     "terms": "たばこ, 自動販売機, 自販機"
@@ -2059,8 +2404,11 @@
                     "terms": "犬の糞入れ, 自動販売機, 自販機"
                 },
                 "amenity/vending_machine/news_papers": {
-                    "name": "新聞自動販売機",
-                    "terms": "新聞, 自動販売機, 自販機"
+                    "name": "新聞自動販売機"
+                },
+                "amenity/vending_machine/newspapers": {
+                    "name": "新聞販売機",
+                    "terms": "新聞販売機"
                 },
                 "amenity/vending_machine/parcel_pickup_dropoff": {
                     "name": "集荷･引取 自動販売機",
@@ -2078,17 +2426,13 @@
                     "name": "菓子販売機",
                     "terms": "菓子,お菓子, スナック, 自動販売機, 自販機"
                 },
-                "amenity/vending_machine/vending_machine": {
-                    "name": "自動販売機",
-                    "terms": "自動販売機, 自販機"
-                },
                 "amenity/veterinary": {
                     "name": "獣医",
                     "terms": "獣医, ペット医"
                 },
                 "amenity/waste_basket": {
                     "name": "ゴミ箱",
-                    "terms": "ゴミ箱, ごみ箱"
+                    "terms": "ゴミ箱, ごみ箱, "
                 },
                 "amenity/waste_disposal": {
                     "name": "ゴミ収集ボックス",
@@ -2101,6 +2445,10 @@
                 "amenity/water_point": {
                     "name": "キャンピングカー用の給水施設",
                     "terms": "給水, 補給, 給水所, キャンピングカー, 給水塔, 飲料水, 飲水, 飲み水, キャンプ場, オートキャンプ場"
+                },
+                "amenity/watering_place": {
+                    "name": "動物の水飲み場",
+                    "terms": "動物の水飲み場, 水場"
                 },
                 "area": {
                     "name": "エリア",
@@ -2121,6 +2469,10 @@
                 "barrier/bollard": {
                     "name": "車止め杭",
                     "terms": "車止め杭"
+                },
+                "barrier/border_control": {
+                    "name": "国境検問所",
+                    "terms": "国境検問所, 検問所"
                 },
                 "barrier/cattle_grid": {
                     "name": "家畜脱出防止溝",
@@ -2159,7 +2511,7 @@
                 },
                 "barrier/lift_gate": {
                     "name": "遮断機",
-                    "terms": "遮断機"
+                    "terms": "遮断機, 門"
                 },
                 "barrier/retaining_wall": {
                     "name": "擁壁",
@@ -2325,6 +2677,10 @@
                 "camp_site/camp_pitch": {
                     "name": "キャンプサイト",
                     "terms": "キャンプサイト"
+                },
+                "club": {
+                    "name": "クラブ",
+                    "terms": "クラブ"
                 },
                 "craft": {
                     "name": "工房",
@@ -2522,13 +2878,28 @@
                     "name": "AED",
                     "terms": "自動体外式除細動器"
                 },
+                "emergency/designated": {
+                    "name": "緊急車両の通行指定"
+                },
+                "emergency/destination": {
+                    "name": "行き先に用事がある緊急車両"
+                },
                 "emergency/fire_hydrant": {
                     "name": "消火栓/消防水利",
                     "terms": "消火栓, 消防, 防火水槽, 消防水利"
                 },
+                "emergency/no": {
+                    "name": "緊急車両の利用不可"
+                },
+                "emergency/official": {
+                    "name": "公的な緊急車両"
+                },
                 "emergency/phone": {
                     "name": "緊急電話",
                     "terms": "緊急電話"
+                },
+                "emergency/private": {
+                    "name": "私有の緊急車両"
                 },
                 "emergency/yes": {
                     "name": "緊急時の利用可"
@@ -2633,8 +3004,8 @@
                     "terms": "ゆずれ, 譲れ"
                 },
                 "highway/living_street": {
-                    "name": "生活道路",
-                    "terms": "生活道路, 路地"
+                    "name": "Living Street (日本では使用しない)",
+                    "terms": "living street"
                 },
                 "highway/mini_roundabout": {
                     "name": "小さな環状交差点",
@@ -2669,8 +3040,8 @@
                     "terms": "主要地方道の連絡路"
                 },
                 "highway/raceway": {
-                    "name": "サーキット",
-                    "terms": "サーキット, 自動車レース場"
+                    "name": "レーストラック（モータースポーツ）",
+                    "terms": "レーストラック"
                 },
                 "highway/residential": {
                     "name": "居住区域内道路",
@@ -2720,6 +3091,10 @@
                     "name": "サービスエリア",
                     "terms": "サービスエリア, 道の駅, SA"
                 },
+                "highway/speed_camera": {
+                    "name": "スピードカメラ",
+                    "terms": "スピードカメラ, オービス, 自動速度違反取締装置"
+                },
                 "highway/steps": {
                     "name": "階段",
                     "terms": "階段"
@@ -2744,6 +3119,10 @@
                     "name": "農道・林道",
                     "terms": "未舗装農道, 農道, 未舗装林道, 林道, 獣道, けもの道, 酷道, 腐道, 険道, 死道, 損道, 道路"
                 },
+                "highway/traffic_mirror": {
+                    "name": "カーブミラー",
+                    "terms": "カーブミラー, ミラー, 道路反射鏡"
+                },
                 "highway/traffic_signals": {
                     "name": "信号機",
                     "terms": "信号機, 交通信号, 道路信号"
@@ -2761,10 +3140,12 @@
                     "terms": "転回場, 車回し"
                 },
                 "highway/turning_loop": {
-                    "name": "転回所(交通島あり)"
+                    "name": "転回所(交通島あり)",
+                    "terms": "転回所"
                 },
                 "highway/unclassified": {
-                    "name": "一般道（2車線未満）"
+                    "name": "一般道（2車線未満）",
+                    "terms": "道路（区分不明）, その他道路"
                 },
                 "historic": {
                     "name": "史跡",
@@ -2794,6 +3175,10 @@
                     "name": "廃墟",
                     "terms": "廃墟"
                 },
+                "historic/tomb": {
+                    "name": "墓",
+                    "terms": "墓, 古墳"
+                },
                 "historic/wayside_cross": {
                     "name": "道路際の十字架",
                     "terms": "道路際の十字架"
@@ -2813,6 +3198,10 @@
                 "landuse/allotments": {
                     "name": "市民庭園",
                     "terms": "庭園, 市民庭園, コミュニティガーデン, ガーデン"
+                },
+                "landuse/aquaculture": {
+                    "name": "養殖場",
+                    "terms": "養殖場"
                 },
                 "landuse/basin": {
                     "name": "遊水地",
@@ -2857,6 +3246,10 @@
                     "name": "草地",
                     "terms": "草地, 芝生"
                 },
+                "landuse/harbour": {
+                    "name": "港湾地域",
+                    "terms": "港湾地域"
+                },
                 "landuse/industrial": {
                     "name": "工業用地",
                     "terms": "工業用地, 工業団地, 工業地"
@@ -2873,6 +3266,50 @@
                     "name": "軍用地",
                     "terms": "軍用地, 自衛隊, 軍事基地, 陸軍, 海軍, 空軍, 陸上自衛隊, 海上自衛隊, 航空自衛隊"
                 },
+                "landuse/military/airfield": {
+                    "name": "軍用飛行場",
+                    "terms": "軍用飛行場"
+                },
+                "landuse/military/barracks": {
+                    "name": "兵舎",
+                    "terms": "兵舎, 兵営"
+                },
+                "landuse/military/bunker": {
+                    "name": "軍事用バンカー",
+                    "terms": "バンカー,掩体壕"
+                },
+                "landuse/military/checkpoint": {
+                    "name": "検問所",
+                    "terms": "検問所"
+                },
+                "landuse/military/danger_area": {
+                    "name": "危険区域",
+                    "terms": "危険区域"
+                },
+                "landuse/military/naval_base": {
+                    "name": "海軍基地",
+                    "terms": "海軍, 軍事基地"
+                },
+                "landuse/military/nuclear_explosion_site": {
+                    "name": "核実験場",
+                    "terms": "核実験場"
+                },
+                "landuse/military/obstacle_course": {
+                    "name": "障害物コース",
+                    "terms": "障害物コース, アスレチックコース"
+                },
+                "landuse/military/office": {
+                    "name": "軍事務所",
+                    "terms": "軍事務所"
+                },
+                "landuse/military/range": {
+                    "name": "軍事演習場",
+                    "terms": "軍事演習場"
+                },
+                "landuse/military/training_area": {
+                    "name": "訓練場",
+                    "terms": "練習場, トレーニングエリア, 訓練場"
+                },
                 "landuse/orchard": {
                     "name": "果樹園",
                     "terms": "果樹園, 果物畑, リンゴ畑, ミカン畑"
@@ -2885,8 +3322,13 @@
                     "name": "露天掘り鉱山",
                     "terms": "採石場, 石切り場, 露天掘り鉱山, 鉱山"
                 },
+                "landuse/railway": {
+                    "name": "鉄道用地",
+                    "terms": "鉄道用地"
+                },
                 "landuse/recreation_ground": {
-                    "name": "レクリエーション用のグラウンド"
+                    "name": "レクリエーション用のグラウンド",
+                    "terms": "レクリエーション場"
                 },
                 "landuse/residential": {
                     "name": "住宅地",
@@ -2920,6 +3362,10 @@
                     "name": "共有地",
                     "terms": "共有地, コモンズ"
                 },
+                "leisure/dance": {
+                    "name": "ダンスホール",
+                    "terms": "ダンスホール"
+                },
                 "leisure/dog_park": {
                     "name": "ドッグパーク",
                     "terms": "ドッグパーク, ドッグラン"
@@ -2929,14 +3375,16 @@
                     "terms": "焚火,キャンプファイヤー"
                 },
                 "leisure/fitness_centre": {
-                    "name": "ジム/フィットネスセンター",
+                    "name": "ジム／フィットネスセンター",
                     "terms": "フィットネスクラブ, フィットネスセンター, ジム"
                 },
                 "leisure/fitness_centre/yoga": {
-                    "name": "ヨガスタジオ"
+                    "name": "ヨガスタジオ",
+                    "terms": "ヨガスタジオ"
                 },
                 "leisure/fitness_station": {
-                    "name": "屋外健康器具"
+                    "name": "屋外運動器具",
+                    "terms": "屋外運動器具"
                 },
                 "leisure/garden": {
                     "name": "庭園",
@@ -2945,6 +3393,10 @@
                 "leisure/golf_course": {
                     "name": "ゴルフコース",
                     "terms": "ゴルフコース, ゴルフ場"
+                },
+                "leisure/horse_riding": {
+                    "name": "乗馬施設",
+                    "terms": "乗馬施設, 馬事公苑, 乗馬クラブ"
                 },
                 "leisure/ice_rink": {
                     "name": "アイススケート場",
@@ -2986,8 +3438,21 @@
                     "name": "バスケットボール場",
                     "terms": "バスケットボール場"
                 },
+                "leisure/pitch/beachvolleyball": {
+                    "name": "ビーチバレーコート",
+                    "terms": "ビーチバレーコート"
+                },
                 "leisure/pitch/bowls": {
-                    "name": "ローンボウルズ"
+                    "name": "ローンボウルズ",
+                    "terms": "ローンボウルズ"
+                },
+                "leisure/pitch/cricket": {
+                    "name": "クリケット場",
+                    "terms": "クリケット場"
+                },
+                "leisure/pitch/equestrian": {
+                    "name": "乗馬場",
+                    "terms": "乗馬場"
                 },
                 "leisure/pitch/rugby_league": {
                     "name": "ラグビーリーグ場",
@@ -3005,6 +3470,10 @@
                     "name": "サッカー場",
                     "terms": "サッカー場"
                 },
+                "leisure/pitch/table_tennis": {
+                    "name": "卓球台",
+                    "terms": "卓球台"
+                },
                 "leisure/pitch/tennis": {
                     "name": "テニスコート",
                     "terms": "テニスコート, テニス場, 庭球場"
@@ -3017,16 +3486,21 @@
                     "name": "児童公園",
                     "terms": "児童公園, 遊び場, 児童遊園, 公園"
                 },
+                "leisure/resort": {
+                    "name": "リゾート",
+                    "terms": "リゾート"
+                },
                 "leisure/running_track": {
-                    "name": "トラック（周回走路）",
-                    "terms": "ランニングトラック, ランニング用周回走路"
+                    "name": "競技トラック (徒競走)",
+                    "terms": "競技トラック (徒競走)"
                 },
                 "leisure/slipway": {
                     "name": "進水路",
                     "terms": "進水路, スリップウェイ"
                 },
                 "leisure/sports_centre": {
-                    "name": "スポーツセンター/複合施設"
+                    "name": "スポーツセンター/複合施設",
+                    "terms": "スポーツセンター, 複合施設"
                 },
                 "leisure/sports_centre/swimming": {
                     "name": "スイミングプール施設",
@@ -3041,8 +3515,8 @@
                     "terms": "遊泳プール, プール, 水泳場"
                 },
                 "leisure/track": {
-                    "name": "（モータースポーツ以外の）競技用トラック（周回走路）",
-                    "terms": "レース用トラック, レース用周回走路, トラック, 競技トラック"
+                    "name": "競技トラック（モータースポーツ以外）",
+                    "terms": "競技トラック"
                 },
                 "leisure/water_park": {
                     "name": "親水公園",
@@ -3096,8 +3570,8 @@
                     "terms": "灯台, ライトハウス"
                 },
                 "man_made/mast": {
-                    "name": "無線塔",
-                    "terms": "無線塔"
+                    "name": "柱",
+                    "terms": "柱"
                 },
                 "man_made/observation": {
                     "name": "監視塔",
@@ -3128,8 +3602,12 @@
                     "terms": "貯蔵タンク, タンク"
                 },
                 "man_made/surveillance": {
+                    "name": "監視装置",
+                    "terms": "調査監視"
+                },
+                "man_made/surveillance_camera": {
                     "name": "監視カメラ",
-                    "terms": "監視カメラ, 監視装置"
+                    "terms": "監視カメラ, オービス"
                 },
                 "man_made/survey_point": {
                     "name": "観測設備",
@@ -3157,47 +3635,15 @@
                 },
                 "man_made/works": {
                     "name": "工場",
-                    "terms": "プラント"
-                },
-                "military/airfield": {
-                    "name": "軍用飛行場",
-                    "terms": "軍用飛行場, 航空基地, 飛行場, 空港, 空軍, 空自, 航空自衛隊, 軍事基地"
-                },
-                "military/barracks": {
-                    "name": "兵舎",
-                    "terms": "兵舎, 兵営"
-                },
-                "military/bunker": {
-                    "name": "バンカー",
-                    "terms": "掩蔽壕, 観測室, バンカー"
-                },
-                "military/checkpoint": {
-                    "name": "チェックポイント",
-                    "terms": "チェックポイント"
-                },
-                "military/danger_area": {
-                    "name": "危険区域",
-                    "terms": "危険区域"
-                },
-                "military/naval_base": {
-                    "name": "海軍基地",
-                    "terms": "海軍基地, 軍艦, 海軍, 海自, 海上自衛隊, 軍事基地"
-                },
-                "military/obstacle_course": {
-                    "name": "障害物コース",
-                    "terms": "アスレッチックコース"
-                },
-                "military/range": {
-                    "name": "軍事演習場",
-                    "terms": "軍事演習場"
-                },
-                "military/training_area": {
-                    "name": "練習場",
-                    "terms": "練習場, トレーニングエリア, 訓練場"
+                    "terms": "工場"
                 },
                 "natural": {
                     "name": "自然",
                     "terms": "自然"
+                },
+                "natural/bare_rock": {
+                    "name": "岩場",
+                    "terms": "岩場"
                 },
                 "natural/bay": {
                     "name": "湾",
@@ -3239,9 +3685,17 @@
                     "name": "山頂",
                     "terms": "山頂, 頂"
                 },
+                "natural/ridge": {
+                    "name": "尾根",
+                    "terms": "尾根, 稜線"
+                },
                 "natural/saddle": {
                     "name": "鞍部",
                     "terms": "鞍部"
+                },
+                "natural/sand": {
+                    "name": "砂地",
+                    "terms": "砂地, 砂丘, 砂漠"
                 },
                 "natural/scree": {
                     "name": "ガレ場",
@@ -3291,6 +3745,10 @@
                     "name": "自然林",
                     "terms": "自然林, 原生林, 森林（自然）"
                 },
+                "noexit/yes": {
+                    "name": "行き止まり",
+                    "terms": "行き止まり"
+                },
                 "office": {
                     "name": "オフィス",
                     "terms": "オフィス"
@@ -3310,6 +3768,10 @@
                 "office/company": {
                     "name": "会社事務所",
                     "terms": "会社事務所, 営業所"
+                },
+                "office/coworking": {
+                    "name": "コワーキングスペース",
+                    "terms": "コワーキングスペース,共同オフィス"
                 },
                 "office/educational_institution": {
                     "name": "教育機関事務所",
@@ -3332,7 +3794,8 @@
                     "terms": "行政機関事務所"
                 },
                 "office/government/register_office": {
-                    "name": "イギリス等の出生、結婚、死亡などの登録所"
+                    "name": "イギリス等の出生、結婚、死亡などの登録所",
+                    "terms": "登記所, 法人登記, 登録所, 法務局"
                 },
                 "office/insurance": {
                     "name": "保険代理店",
@@ -3345,6 +3808,10 @@
                 "office/lawyer": {
                     "name": "法律事務所",
                     "terms": "法律事務所"
+                },
+                "office/lawyer/notary": {
+                    "name": "公証人役場",
+                    "terms": "公証人役場"
                 },
                 "office/newspaper": {
                     "name": "新聞社",
@@ -3389,8 +3856,7 @@
                     "terms": "市名, 地名"
                 },
                 "place/farm": {
-                    "name": "農場",
-                    "terms": "農場"
+                    "name": "農場"
                 },
                 "place/hamlet": {
                     "name": "集落",
@@ -3412,9 +3878,17 @@
                     "name": "小字",
                     "terms": "小字, 地名"
                 },
+                "place/quarter": {
+                    "name": "Sub-Borough / Quarter",
+                    "terms": "Sub-Borough / Quarter"
+                },
+                "place/square": {
+                    "name": "広場",
+                    "terms": "広場"
+                },
                 "place/suburb": {
-                    "name": "自治区",
-                    "terms": "自治区"
+                    "name": "区",
+                    "terms": "Borough, Suburb, 区, 行政区, 区界"
                 },
                 "place/town": {
                     "name": "町",
@@ -3442,6 +3916,10 @@
                 "power/minor_line": {
                     "name": "配電線",
                     "terms": "配電線"
+                },
+                "power/plant": {
+                    "name": "発電所",
+                    "terms": "発電所, 発電所の敷地"
                 },
                 "power/pole": {
                     "name": "電柱",
@@ -3478,7 +3956,8 @@
                     "terms": "鉄道跡, 線路跡, 廃線跡"
                 },
                 "railway/crossing": {
-                    "name": "踏切(歩道)"
+                    "name": "踏切 (歩道)",
+                    "terms": "踏切 (歩道), 歩行者用踏切"
                 },
                 "railway/disused": {
                     "name": "休止線路",
@@ -3493,7 +3972,8 @@
                     "terms": "停留所, 停留場, 駅, 鉄道駅"
                 },
                 "railway/level_crossing": {
-                    "name": "踏切(車道)"
+                    "name": "踏切 (車道)",
+                    "terms": "踏切 (車道), 踏切"
                 },
                 "railway/monorail": {
                     "name": "モノレール",
@@ -3526,6 +4006,10 @@
                 "railway/tram": {
                     "name": "路面電車",
                     "terms": "路面電車"
+                },
+                "railway/tram_stop": {
+                    "name": "電停",
+                    "terms": "電停, 停留所"
                 },
                 "relation": {
                     "name": "リレーション",
@@ -3579,14 +4063,16 @@
                     "terms": "美容サービス, エステサロン, ネイルサロン"
                 },
                 "shop/beauty/nails": {
-                    "name": "ネイルサロン"
+                    "name": "ネイルサロン",
+                    "terms": "ネイルサロン"
                 },
                 "shop/beauty/tanning": {
-                    "name": "日焼けサロン"
+                    "name": "日焼けサロン",
+                    "terms": "日焼けサロン"
                 },
                 "shop/bed": {
-                    "name": "ベッド/マットレス専門店",
-                    "terms": "ベッド, マットレス, 寝具"
+                    "name": "寝具店",
+                    "terms": "ベッド店, マットレス店, 寝具店"
                 },
                 "shop/beverages": {
                     "name": "飲料店",
@@ -3642,7 +4128,7 @@
                 },
                 "shop/chemist": {
                     "name": "薬品・化粧品店",
-                    "terms": "ドラッグストア"
+                    "terms": "薬品・化粧品店, ドラッグストア, 薬局, 薬屋"
                 },
                 "shop/chocolate": {
                     "name": "チョコレート店",
@@ -3705,7 +4191,8 @@
                     "terms": "クリーニング, ドライクリーニング店, 洗濯屋"
                 },
                 "shop/e-cigarette": {
-                    "name": "電子タバコ店"
+                    "name": "電子タバコ店",
+                    "terms": "電子タバコ店"
                 },
                 "shop/electronics": {
                     "name": "家電販売店",
@@ -3753,6 +4240,10 @@
                 "shop/garden_centre": {
                     "name": "園芸用品店",
                     "terms": "園芸用品店, ガーデンセンター"
+                },
+                "shop/gas": {
+                    "name": "ガスボンベ店",
+                    "terms": "ガスボンベ店"
                 },
                 "shop/gift": {
                     "name": "ギフト店",
@@ -3875,11 +4366,16 @@
                     "terms": "塗料店"
                 },
                 "shop/pastry": {
-                    "name": "焼菓子店"
+                    "name": "焼菓子店",
+                    "terms": "焼菓子店, ケーキ屋"
                 },
                 "shop/pawnbroker": {
                     "name": "質店",
                     "terms": "質屋, 質店"
+                },
+                "shop/perfumery": {
+                    "name": "香水店",
+                    "terms": "香水店"
                 },
                 "shop/pet": {
                     "name": "ペットショップ",
@@ -3934,8 +4430,8 @@
                     "terms": "スーパーマーケット, スーパー"
                 },
                 "shop/tailor": {
-                    "name": "仕立て屋",
-                    "terms": "仕立て屋, テイラー, 洋裁店"
+                    "name": "仕立屋",
+                    "terms": "仕立屋, テイラー, 洋裁店"
                 },
                 "shop/tattoo": {
                     "name": "タトゥースタジオ",
@@ -3981,8 +4477,12 @@
                     "terms": "ビデオソフト店, DVD店"
                 },
                 "shop/video_games": {
-                    "name": "テレビゲーム専門店",
-                    "terms": "ゲーム屋"
+                    "name": "テレビゲーム店",
+                    "terms": "テレビゲーム店"
+                },
+                "shop/watches": {
+                    "name": "腕時計店",
+                    "terms": "腕時計店"
                 },
                 "shop/water_sports": {
                     "name": "ウォータースポーツ用品店",
@@ -4009,7 +4509,12 @@
                     "terms": "山小屋"
                 },
                 "tourism/apartment": {
-                    "name": "リゾートマンション"
+                    "name": "リゾートマンション",
+                    "terms": "リゾートマンション"
+                },
+                "tourism/aquarium": {
+                    "name": "水族館",
+                    "terms": "水族館"
                 },
                 "tourism/artwork": {
                     "name": "芸術作品",
@@ -4017,10 +4522,11 @@
                 },
                 "tourism/attraction": {
                     "name": "観光名所",
-                    "terms": "観光名所, 見どころ"
+                    "terms": "観光名所, 見どころ, アトラクション, 見もの"
                 },
                 "tourism/camp_site": {
-                    "name": "キャンプ場"
+                    "name": "キャンプ場",
+                    "terms": "キャンプ場"
                 },
                 "tourism/caravan_site": {
                     "name": "オートキャンプ場",
@@ -4051,16 +4557,20 @@
                     "terms": "観光案内, 案内, 案内板, 案内所, インフォメーション"
                 },
                 "tourism/information/board": {
-                    "name": "情報掲示板"
+                    "name": "情報掲示板",
+                    "terms": "情報掲示板"
                 },
                 "tourism/information/guidepost": {
-                    "name": "ガイドポスト"
+                    "name": "道標",
+                    "terms": "道標, ガイドポスト"
                 },
                 "tourism/information/map": {
-                    "name": "地図"
+                    "name": "地図板",
+                    "terms": "地図板"
                 },
                 "tourism/information/office": {
-                    "name": "観光案内所"
+                    "name": "観光案内所",
+                    "terms": "観光案内所"
                 },
                 "tourism/motel": {
                     "name": "モーテル",
@@ -4087,24 +4597,36 @@
                     "terms": "動物園"
                 },
                 "traffic_calming": {
-                    "name": "減速帯"
+                    "name": "交通静穏化",
+                    "terms": "交通静穏化"
                 },
                 "traffic_calming/bump": {
                     "name": "スピードバンプ",
                     "terms": "スピードバンプ"
                 },
                 "traffic_calming/chicane": {
-                    "name": "シケイン"
+                    "name": "シケイン",
+                    "terms": "シケイン"
                 },
                 "traffic_calming/choker": {
-                    "name": "狭隘路"
+                    "name": "チョーカー",
+                    "terms": "チョーカー"
+                },
+                "traffic_calming/cushion": {
+                    "name": "スピードクッション",
+                    "terms": "スピードクッション"
+                },
+                "traffic_calming/dip": {
+                    "name": "ディップ",
+                    "terms": "ディップ"
                 },
                 "traffic_calming/hump": {
                     "name": "スピードハンプ",
                     "terms": "スピードハンプ"
                 },
                 "traffic_calming/island": {
-                    "name": "交通島"
+                    "name": "交通島",
+                    "terms": "交通島"
                 },
                 "traffic_calming/rumble_strip": {
                     "name": "ランブルストリップ",
@@ -4213,6 +4735,10 @@
                     "name": "ルートマスター",
                     "terms": "ルートマスター"
                 },
+                "type/site": {
+                    "name": "区域",
+                    "terms": "区域"
+                },
                 "vertex": {
                     "name": "その他",
                     "terms": "その他"
@@ -4265,7 +4791,12 @@
                     "terms": "小川, せせらぎ, 川"
                 },
                 "waterway/water_point": {
-                    "name": "ボートのタンクに飲料水をくむための場所"
+                    "name": "船舶用飲料水給水所",
+                    "terms": "船舶用飲料水給水所"
+                },
+                "waterway/waterfall": {
+                    "name": "滝",
+                    "terms": "滝"
                 },
                 "waterway/weir": {
                     "name": "堰",

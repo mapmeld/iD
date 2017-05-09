@@ -71,14 +71,12 @@
             },
             "delete": {
                 "title": "Șterge",
-                "description": "Șterge obiectul definitiv.",
                 "annotation": {
                     "point": "Șterge un punct.",
                     "vertex": "Șterge un nod dintr-o cale.",
                     "line": "Șterge o linie.",
                     "area": "Șterge o suprafață.",
-                    "relation": "Șterge o relație.",
-                    "multiple": "Am șters {n} obiecte."
+                    "relation": "Șterge o relație."
                 }
             },
             "add_member": {
@@ -107,14 +105,12 @@
             },
             "move": {
                 "title": "Mută",
-                "description": "Mută la o locație noua.",
                 "key": "M",
                 "annotation": {
                     "point": "Am mutat un punct.",
                     "vertex": "Am mutat un nod intr-o cale.",
                     "line": "Am mutat o linie.",
-                    "area": "Am mutat o suprafață.",
-                    "multiple": "Am mutat mai multe obiecte."
+                    "area": "Am mutat o suprafață."
                 }
             },
             "rotate": {
@@ -152,8 +148,6 @@
             "hidden_warning": "{count} funcționalități ascunse"
         },
         "commit": {
-            "title": "Salveaza modificarile",
-            "save": "Salveaza",
             "cancel": "Renunță",
             "changes": "{count} Modificări",
             "warnings": "Atenționări",
@@ -242,9 +236,7 @@
         },
         "save": {
             "title": "Salveaza",
-            "help": "Salvează modificările pe OpenSteetMap, făcându-le disponibile către alți utilizatori.",
             "no_changes": "Nici o modificare de salvat.",
-            "uploading": "Încarcă modificările in OpenStreetMap",
             "unsaved_changes": "Ai modificări nesalvate."
         },
         "success": {
@@ -272,7 +264,6 @@
             "untagged_point": "Punct neetichetat",
             "untagged_line": "Linie fară tag-uri (cuvinte cheie)",
             "untagged_area": "Suprafața fară tag-uri",
-            "many_deletions": "Șteregi {n} obiecte. Ești sigur(ă) ? Le vei șterge de pe harta pe care toată lumea o vede pe opensteetmap.org. ",
             "tag_suggests_area": "Tag-ul {tag} sugerează că linia trebuie sa fie o suprafață, dar nu e.",
             "deprecated_tags": "Tag-uri învechite: {tags}"
         },
@@ -280,27 +271,34 @@
             "in": "Mareste",
             "out": "Micsoreaza"
         },
-        "gpx": {
-            "local_layer": "Fișier GPX local"
-        },
         "help": {
             "title": "Ajutor"
         },
         "intro": {
+            "graph": {
+                "block_number": "<value for addr:block_number>",
+                "county": "<value for addr:county>",
+                "district": "<value for addr:district>",
+                "hamlet": "<value for addr:hamlet>",
+                "neighbourhood": "<value for addr:neighbourhood>",
+                "province": "<value for addr:province>",
+                "quarter": "<value for addr:quarter>",
+                "state": "<value for addr:state>",
+                "subdistrict": "<value for addr:subdistrict>",
+                "suburb": "<value for addr:suburb>",
+                "countrycode": "ro"
+            },
             "navigation": {
-                "title": "Navigare",
-                "select": "Trăsăturile hărții sunt reprezentate in trei moduri: folosind puncte, linii sau suprafețe. Toate trăsăturile pot fi selectate apăsând pe ele. **Apasă pe un punct pentru al selecta.** "
+                "title": "Navigare"
             },
             "points": {
                 "title": "Puncte"
             },
             "areas": {
-                "title": "Suprafețe",
-                "search": "**Caută {name}.**"
+                "title": "Suprafețe"
             },
             "lines": {
-                "title": "Linii",
-                "road": "**Selectează drumul din listă**"
+                "title": "Linii"
             },
             "startediting": {
                 "title": "Începe editarea",
@@ -435,9 +433,6 @@
                 },
                 "source": {
                     "label": "Sursă"
-                },
-                "sport": {
-                    "label": "Sport"
                 },
                 "surface": {
                     "label": "Suprafață"
