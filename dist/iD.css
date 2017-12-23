@@ -1943,91 +1943,8 @@ path.fill.tag-amenity-shelter {
 .turn circle {
     cursor: pointer;
 }
-/* Mapillary Image Layer */
-
-.layer-mapillary-images {
-    pointer-events: none;
-}
-
-.layer-mapillary-images .viewfield-group {
-    pointer-events: visible;
-    cursor: pointer; /* Opera */
-    cursor: url(img/cursor-select-mapillary.png) 6 1, pointer; /* FF */
-}
-
-.layer-mapillary-images .viewfield-group * {
-    stroke-width: 1;
-    stroke: #444;
-    fill: #ffc600;
-    z-index: 50;
-}
-
-.layer-mapillary-images .viewfield-group:hover * {
-    stroke-width: 1;
-    stroke: #333;
-    fill: #ff9900;
-    z-index: 60;
-}
-
-.layer-mapillary-images .viewfield-group.selected  * {
-    stroke-width: 2;
-    stroke: #222;
-    fill: #ff5800;
-    z-index: 60;
-}
-
-.layer-mapillary-images .viewfield-group:hover path.viewfield,
-.layer-mapillary-images .viewfield-group.selected path.viewfield,
-.layer-mapillary-images .viewfield-group path.viewfield {
-    stroke-width: 0;
-    fill-opacity: 0.6;
-}
-
-/* Mapillary Sign Layer */
-
-.layer-mapillary-signs {
-    pointer-events: none;
-}
-
-.layer-mapillary-signs .icon-sign .icon-sign-body {
-    min-width: 20px;
-    height: 24px;
-    width: 24px;
-    outline: 2px solid transparent;
-    pointer-events: visible;
-    cursor: pointer; /* Opera */
-    cursor: url(img/cursor-select-mapillary.png) 6 1, pointer; /* FF */
-    z-index: 70;
-    overflow: visible;
-}
-
-.layer-mapillary-signs .icon-sign:hover .icon-sign-body {
-    outline: 2px solid rgba(255,198,0,0.8);
-    z-index: 80;
-}
-
-.layer-mapillary-signs .icon-sign.selected .icon-sign-body {
-    outline: 2px solid rgba(255,0,0,0.8);
-    z-index: 80;
-}
-
-
-/* Mapillary viewer */
-#mly .domRenderer .TagSymbol {
-    font-size: 10px;
-    background-color: rgba(0, 0, 0, 0.4);
-    padding: 0 4px;
-    border-radius: 4px;
-    top: -25px;
-}
-
-#mly .domRenderer .Attribution {
-    width: 100%;
-    font-size: 10px;
-    text-align: right;
-}
-
-.mapillary-wrap {
+/* photo viewer div */
+#photoviewer {
     position: absolute;
     bottom: 30px;
     width: 330px;
@@ -2036,11 +1953,7 @@ path.fill.tag-amenity-shelter {
     background-color: #fff;
 }
 
-.mapillary-wrap.hidden {
-    visibility: hidden;
-}
-
-.mapillary-wrap button.thumb-hide {
+#photoviewer button.thumb-hide {
     border-radius: 0;
     padding: 5px;
     position: absolute;
@@ -2049,14 +1962,227 @@ path.fill.tag-amenity-shelter {
     z-index: 500;
 }
 
-.mly-wrapper {
-    visibility: hidden;
+.photo-wrapper,
+.photo-wrapper img {
     width: 100%;
     height: 100%;
+    overflow: hidden;
 }
 
-.mly-wrapper.active {
-    visibility: visible;
+.photo-wrapper .photo-attribution {
+    width: 100%;
+    font-size: 10px;
+    text-align: right;
+    position: absolute;
+    bottom: 0;
+    right: 0;
+    padding: 4px 2px;
+    z-index: 10;
+}
+
+.photo-attribution a,
+.photo-attribution a:visited,
+.photo-attribution span {
+    padding: 4px 2px;
+    color: #fff;
+}
+
+/* markers and sequences */
+.viewfield-group {
+    pointer-events: visible;
+    cursor: pointer;
+}
+
+.viewfield-group.selected * {
+    fill: #ffee00 !important;
+}
+.viewfield-group.hovered * {
+    fill: #eebb00 !important;
+}
+
+.viewfield-group circle {
+    stroke: #555;
+    stroke-width: 1;
+    stroke-opacity: 0.4;
+    fill-opacity: 0.4;
+}
+.viewfield-group.highlighted circle {
+    stroke: #222;
+    stroke-opacity: 0.9;
+    fill-opacity: 0.9;
+}
+.viewfield-group.highlighted.hovered circle {
+    stroke: #222;
+    stroke-width: 2;
+    stroke-opacity: 0.9;
+    fill-opacity: 0.9;
+}
+.viewfield-group.highlighted.selected circle {
+    stroke: #222;
+    stroke-width: 2;
+    stroke-opacity: 1;
+    fill-opacity: 1;
+}
+
+.viewfield-group .viewfield {
+    stroke-width: 0;
+    stroke: #222;
+    fill-opacity: 0.4;
+}
+.viewfield-group.highlighted .viewfield {
+    stroke-width: 1;
+    fill-opacity: 0.8;
+}
+.viewfield-group.highlighted.hovered .viewfield {
+    stroke-width: 1;
+    fill-opacity: 0.8;
+}
+.viewfield-group.highlighted.selected .viewfield {
+    stroke-width: 1;
+    fill-opacity: 0.9;
+}
+
+.viewfield-group.selected .viewfield-scale {
+    transform: scale(2,2);
+}
+
+.sequence {
+    fill: none;
+    stroke-width: 2;
+    stroke-opacity: 0.4;
+}
+.sequence.highlighted,
+.sequence.selected {
+    stroke-width: 4;
+    stroke-opacity: 1;
+}
+
+
+/* Mapillary Image Layer */
+.layer-mapillary-images {
+    pointer-events: none;
+}
+.layer-mapillary-images .viewfield-group * {
+    fill: #55ff22;
+}
+.layer-mapillary-images .sequence {
+    stroke: #55ff22;
+}
+
+
+/* Mapillary Sign Layer */
+.layer-mapillary-signs {
+    pointer-events: none;
+}
+.layer-mapillary-signs .icon-sign .icon-sign-body {
+    min-width: 20px;
+    height: 24px;
+    width: 24px;
+    outline: 2px solid transparent;
+    pointer-events: visible;
+    cursor: pointer;
+    z-index: 30;
+    overflow: visible;
+}
+.layer-mapillary-signs .icon-sign:hover .icon-sign-body {
+    outline: 5px solid #eebb00;
+    background-color: #eebb00;
+    z-index: 70;
+}
+.layer-mapillary-signs .icon-sign.selected .icon-sign-body {
+    outline: 5px solid #ffee00;
+    background-color: #ffee00;
+    z-index: 40;
+}
+
+
+/* OpenStreetCam Image Layer */
+.layer-openstreetcam-images {
+    pointer-events: none;
+}
+.layer-openstreetcam-images .viewfield-group * {
+    fill: #77ddff;
+}
+.layer-openstreetcam-images .sequence {
+    stroke: #77ddff;
+}
+
+
+/* Mapillary viewer */
+#mly .domRenderer .TagSymbol {
+    font-size: 10px;
+    background-color: rgba(0,0,0,0.4);
+    padding: 0 4px;
+    border-radius: 4px;
+    top: -25px;
+}
+#mly .domRenderer .Attribution {
+    /* we will roll our own to avoid async update issues like #4526 */
+    display: none;
+}
+
+.mly-wrapper .photo-attribution a:active,
+.mly-wrapper .photo-attribution a:hover {
+    color: #35af6d;
+}
+
+.mly-wrapper .mapillary-js-dom {
+    z-index: 9;
+}
+
+/* OpenStreetCam viewer */
+.osc-wrapper {
+    position: relative;
+    background-color: #000;
+    background-image: url(img/loader-black.gif);
+    background-position: center;
+    background-repeat: no-repeat;
+}
+
+.osc-wrapper .photo-attribution a:active,
+.osc-wrapper .photo-attribution a:hover {
+    color: #77ddff;
+}
+
+.osc-controls-wrap {
+    text-align: center;
+    position: absolute;
+    top: 10px;
+    width: 100%;
+    z-index: 10;
+}
+
+.osc-controls {
+    display: inline-block;
+    z-index: 10;
+}
+
+.osc-controls button {
+    height: 18px;
+    width: 18px;
+    background: rgba(0,0,0,0.65);
+    color: #eee;
+    border-radius: 0;
+}
+.osc-controls button:first-of-type {
+    border-radius: 3px 0 0 3px;
+}
+.osc-controls button:last-of-type {
+    border-radius: 0 3px 3px 0;
+}
+.osc-controls button:hover,
+.osc-controls button:active,
+.osc-controls button:focus {
+    background: rgba(0,0,0,0.85);
+    color: #fff;
+}
+
+.osc-image-wrap {
+    transform-origin:0 0;
+    -ms-transform-origin:0 0;
+    -webkit-transform-origin:0 0;
+    -moz-transform-origin:0 0;
+    -o-transform-origin:0 0;
 }
 /* Fill Styles */
 
@@ -4734,12 +4860,26 @@ div.full-screen > button:hover {
 }
 
 .help-wrap .left-content .body p code {
-    padding:2px 4px;
-    background:#eee;
+    padding: 3px 4px;
+    font-size: 12px;
+    color: #555;
+    vertical-align: baseline;
+    background-color: #f6f6f6;
+    border: solid 1px #ccc;
+    margin: 0 2px;
+    border-bottom-color: #bbb;
+    border-radius: 3px;
+    box-shadow: inset 0 -1px 0 #bbb;
+}
+
+.help-wrap .left-content .icon.pre-text {
+    vertical-align: text-top;
+    margin-right: 0;
+    margin-left: 0;
+    display: inline-block;
 }
 
 .help-wrap .toc {
-    /* This is two columns, 41.66666 x .4 = 16.6666 */
     width:40%;
     float:right;
     margin-left: 20px;
@@ -4750,7 +4890,7 @@ div.full-screen > button:hover {
 .help-wrap .toc li a,
 .help-wrap .nav a {
     display: block;
-    border: 1px solid #CCC;
+    border: 1px solid #ccc;
     padding: 5px 10px;
 }
 
@@ -4764,7 +4904,7 @@ div.full-screen > button:hover {
 }
 
 .help-wrap .toc li a.selected {
-    background: #E8EBFF;
+    background: #e8ebff;
 }
 
 .help-wrap .toc li:first-child a {
@@ -4772,7 +4912,7 @@ div.full-screen > button:hover {
 }
 
 .help-wrap .toc li:nth-last-child(3) a {
-    border-bottom: 1px solid #CCC;
+    border-bottom: 1px solid #ccc;
     border-radius: 0 0 4px 4px
 }
 
@@ -4845,7 +4985,7 @@ img.tile {
     padding: 5px;
     border-radius: 3px;
     z-index: 2;
-    margin-left: -50px;
+    margin-left: -70px;
     margin-top: -20px;
 
     transform-origin:0 0;
@@ -5066,21 +5206,32 @@ img.tile-removing {
     position: relative;
 }
 
+.panel-content li span {
+    display: inline-block;
+    white-space: nowrap;
+    margin: 0 8px;
+}
+
 .panel-content .button {
     display: inline-block;
     background: #7092ff;
     border-radius: 2px;
     padding: 0 4px;
     margin-top: 10px;
+    margin-right: 10px;
     color: white;
+}
+[dir='rtl'] .panel-content .button {
+    margin-right: auto;
+    margin-left: 10px;
 }
 
 .panel-content-history .links a {
-    margin-left: 10px;
+    margin-left: 8px;
 }
 [dir='rtl'] .panel-content-history .links a {
     margin-left: auto;
-    margin-right: 10px;
+    margin-right: 8px;
 }
 
 .panel-content-history .view-history-on-osm {
@@ -5154,13 +5305,13 @@ img.tile-removing {
     margin: 0 3px;
 }
 
-
 #footer {
     pointer-events: all;
     display: block;
     height: 30px;
 }
 
+/* footer flash message */
 
 #flash-wrap {
     display: flex;
@@ -5173,7 +5324,7 @@ img.tile-removing {
     left: 0;
 }
 
-#flash-wrap .content {
+.flash-content {
     display: flex;
     flex: 1 0 auto;
     flex-flow: row nowrap;
@@ -5182,15 +5333,38 @@ img.tile-removing {
     height: 30px;
 }
 
-
-#flash-wrap svg.operation-icon {
+.flash-icon {
     flex: 0 0 auto;
     width: 20px;
     height: 20px;
     margin: 0 8px;
 }
 
-#flash-wrap div.operation-tip {
+.flash-icon circle {
+    fill: #eee;
+}
+.flash-icon.disabled circle {
+    cursor: auto;
+    fill: rgba(255,255,255,0.7);
+}
+
+.flash-icon use {
+    color: #222;
+}
+.flash-icon.disabled use {
+    color: rgba(32,32,32,0.7);
+}
+
+.flash-icon.operation use {
+    fill: #222;
+    color: #79f;
+}
+.flash-icon.operation.disabled use {
+    fill: rgba(32,32,32,0.7);
+    color: rgba(40,40,40,0.7);
+}
+
+.flash-text {
     flex: 1 1 auto;
 }
 
@@ -5219,6 +5393,8 @@ img.tile-removing {
     -webkit-transition: bottom 75ms linear;
 }
 
+
+/* footer scale */
 
 #scale-block {
     vertical-align: bottom;
@@ -5604,11 +5780,11 @@ img.tile-removing {
     box-shadow: inset 0 -1px 0 #bbb;
 }
 
-.modal-shortcuts .shortcut-keys svg.mouseclick use.left {
+svg.mouseclick use.left {
     fill: rgba(112, 146, 255, 1);
     color: rgba(112, 146, 255, 0);
 }
-.modal-shortcuts .shortcut-keys svg.mouseclick use.right {
+svg.mouseclick use.right {
     fill: rgba(112, 146, 255, 0);
     color: rgba(112, 146, 255, 1);
 }
@@ -5770,8 +5946,7 @@ img.tile-removing {
 
 .notice {
     position: absolute;
-    top: 50%;
-    bottom: 50%;
+    top: 45px;
     left: 0;
     right: 0;
     text-align: center;
@@ -5780,7 +5955,7 @@ img.tile-removing {
 .notice .zoom-to {
     margin: auto;
     width: 300px;
-    height: 80px;
+    height: 70px;
     font-size: 150%;
     border-radius: 8px;
 }
