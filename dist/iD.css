@@ -1983,20 +1983,20 @@ path.fill.tag-amenity-shelter {
     cursor: url(img/cursor-draw.png) 9 9, crosshair; /* FF */
 }
 
-.mode-draw-line .way.hover,
-.mode-draw-area .way.hover,
-.mode-add-line  .way.hover,
-.mode-add-area  .way.hover,
-.mode-drag-node .way.hover {
+.mode-draw-line .way.target,
+.mode-draw-area .way.target,
+.mode-add-line  .way.target,
+.mode-add-area  .way.target,
+.mode-drag-node .way.target {
     cursor: crosshair; /* Opera */
     cursor: url(img/cursor-draw-connect-line.png) 9 9, crosshair; /* FF */
 }
 
-.mode-draw-line .vertex.hover,
-.mode-draw-area .vertex.hover,
-.mode-add-line  .vertex.hover,
-.mode-add-area  .vertex.hover,
-.mode-drag-node .vertex.hover {
+.mode-draw-line .vertex.target,
+.mode-draw-area .vertex.target,
+.mode-add-line  .vertex.target,
+.mode-add-area  .vertex.target,
+.mode-drag-node .vertex.target {
     cursor: crosshair; /* Opera */
     cursor: url(img/cursor-draw-connect-vertex.png) 9 9, crosshair; /* FF */
 }
@@ -2466,6 +2466,17 @@ h4, h5 {
     outline-style: none;
 }
 
+::placeholder { /* Chrome, Firefox, Opera, Safari 10.1+ */
+    color: #aaa;
+    opacity: 1; /* Firefox */
+}
+:-ms-input-placeholder { /* Internet Explorer 10-11 */
+    color: #aaa;
+}
+::-ms-input-placeholder { /* Microsoft Edge */
+    color: #aaa;
+}
+
 p {
     font-size: 12px;
     margin:0;
@@ -2715,7 +2726,7 @@ li.hide {
 
 button {
     text-align: center;
-    line-height:20px;
+    line-height: 20px;
     border:0;
     background: white;
     font-weight: bold;
@@ -2959,16 +2970,12 @@ button.save.has-count .count::before {
 }
 
 .header h3 {
-    text-align: left;
+    text-align: center;
     margin-bottom: 0;
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
-    padding: 20px 20px 20px 40px;
-}
-[dir='rtl'] .header h3 {
-    text-align: right;
-    padding: 20px 40px 20px 20px;
+    padding: 20px;
 }
 
 .header button,
@@ -4151,6 +4158,10 @@ input[type=number] {
 
 .restriction-controls-container .restriction-controls {
     display: table;
+    -moz-user-select: none;
+    -webkit-user-select: none;
+    -ms-user-select: none;
+    user-select: none;
 }
 
 .restriction-controls .restriction-control {
@@ -5028,18 +5039,19 @@ div.full-screen > button:hover {
 
 /* Side panes */
 
-.map-data-control .map-pane,
+/*.map-data-control .map-pane,
 .background-control .map-pane,
 .help-control .map-pane {
-    z-index: -1;
 }
-
+*/
 .map-pane {
     position: fixed;
     top: 60px;
     bottom: 30px;
     right: 0;
+    padding-bottom: 50px;
     overflow: hidden;
+    z-index: -1;
 }
 [dir='rtl'] .map-pane {
     left: 0;
@@ -5156,6 +5168,7 @@ div.full-screen > button:hover {
 
 .help-wrap .nav {
     position: relative;
+    padding-bottom: 30px;
 }
 
 .help-wrap .nav a {
@@ -5340,7 +5353,7 @@ img.tile-debug {
 .nocolor { color: rgba(0, 0, 0, 0); }
 .red     { color: rgba(255, 0, 0, 0.75); }
 .green   { color: rgba(0, 255, 0, 0.75); }
-.blue    { color: rgba(0, 0, 255, 0.75); }
+.blue    { color: rgba(176, 176, 255, 0.75); }
 .yellow  { color: rgba(255, 255, 0, 0.75); }
 .cyan    { color: rgba(0, 255, 255, 0.75); }
 .magenta { color: rgba(255, 0, 255, 0.75); }
@@ -5750,6 +5763,9 @@ img.tile-debug {
     color: #ccf;
 }
 
+/* Notification Badges */
+
+/* For an icon (e.g. new version) */
 .badge {
     display: inline-block;
     background: #d32232;
@@ -5774,6 +5790,24 @@ img.tile-debug {
     width: 11px;
     height: 11px;
     fill: white;
+}
+
+/* For text (e.g. upcoming events) */
+.badge-text {
+    display: inline-block;
+    color: white;
+    text-align: center;
+    width: 16px;
+    height: 16px;
+    font-size: 10px;
+    font-weight: bold;
+    margin-left: 5px;
+    background: #f00;
+    border-radius: 9px;
+}
+[dir='rtl'] .badge-text {
+    margin-left: 0;
+    margin-right: 5px;
 }
 
 
@@ -5849,8 +5883,7 @@ img.tile-debug {
     text-align: center;
 }
 
-.modal-actions button,
-.save-success a.button {
+.modal-actions button {
     font-weight: normal;
     color: #7092ff;
     border-bottom: 1px solid #ccc;
@@ -5859,10 +5892,14 @@ img.tile-debug {
     text-align: center;
     display: inline-block;
 }
-
-.modal-actions button:hover
-.save-success a.button:hover {
+.modal-actions button:hover {
     background-color: #ececec;
+}
+
+.logo-small {
+    height: 40px;
+    width: 40px;
+    margin: auto;
 }
 
 .logo {
@@ -5886,33 +5923,102 @@ img.tile-debug {
     color: #7092ff;
 }
 .modal-actions .logo-reset {
-    color: #E06C5E;
+    color: #e06c5e;
 }
 
 /* Success Modal
 ------------------------------------------------------- */
+.save-success.body {
+    overflow-y: scroll;
+    overflow-x: hidden;
+}
+
+.save-success .link-out {
+    margin: 0px 5px;
+    white-space: nowrap;
+}
+
+.save-summary,
+.save-communityLinks {
+    padding: 0px 20px 15px 20px;
+}
+
+.save-communityLinks {
+    border-top: 1px solid #ccc;
+}
+
+.save-success table,
 .save-success p {
-    padding: 15px 15px 0 15px;
+    margin-top: 15px;
 }
-.save-success a.details {
-    padding-left: 15px;
+.save-success h3 {
+    font-size: 14px;
+    margin-top: 15px;
+    line-height: 1.5;
+    padding-bottom: 0;
 }
-.save-success .button {
-    padding-top: 15px;
+.save-success td {
+    vertical-align: top;
 }
-.save-success .logo-osm {
-    color: #7092ff;
-    margin-bottom: 10px;
+.save-success td.cell-icon {
+    width: 40px;
 }
-.save-success a.button.social {
-    height: auto;
-    border-bottom: none;
+.save-success td.cell-detail {
+    padding: 0 10px;
 }
-.save-success .icon.social {
-    height: 80px;
-    width: 80px;
-    color: #7092ff;
+.save-success td.community-detail {
+    padding-bottom: 15px;
 }
+
+.summary-view-on-osm,
+.community-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+.community-languages {
+    margin-top: 5px;
+    font-style: italic;
+}
+.community-languages:only-child {
+    margin-top: 0;
+}
+
+.community-detail a.hide-toggle,
+.community-detail a:visited.hide-toggle {
+    font-size: 12px;
+    font-weight: normal;
+    padding-bottom: 0;
+}
+.community-detail .hide-toggle svg.icon.pre-text {
+    width: 12px;
+    height: 15px;
+}
+
+.community-events {
+    margin-top: 5px;
+}
+
+.community-event,
+.community-more {
+    background-color: #efefef;
+    padding: 8px;
+    border-radius: 4px;
+    margin-bottom: 5px;
+}
+
+.community-event-name {
+    font-size: 14px;
+    font-weight: bold;
+}
+.community-event-when {
+    font-weight: bold;
+}
+
+.community-missing {
+    padding: 10px;
+    text-align: center;
+}
+
 
 /* Splash Modal
 ------------------------------------------------------- */
