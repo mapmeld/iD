@@ -371,14 +371,14 @@ button.disabled {
     border-radius: 4px 0 0 4px;
 }
 [dir='rtl'] .joined > *:first-child {
-    border-radius: 0 4px 4px 0;
+    border-radius: 4px 4px 0 0;
 }
 .joined > *:last-child {
     border-right-width: 0;
     border-radius: 0 4px 4px 0;
 }
 [dir='rtl'] .joined > *.bar-button:last-child {
-    border-radius: 4px 0 0 4px;
+    border-radius: 0 0 4px 4px;
 }
 
 
@@ -1934,6 +1934,7 @@ button.preset-favorite-button.active .icon {
 }
 [dir='rtl'] .form-field-input-wrap > button:last-of-type {
     border-bottom-left-radius: 4px;
+    border-bottom-right-radius: 0;
 }
 
 
