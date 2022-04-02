@@ -11,7 +11,7 @@ import {
 import { presetManager } from '../presets';
 import { osmEntity } from '../osm';
 import { utilDetect } from '../util/detect';
-import { utilDisplayName, utilDisplayNameForPath, utilEntitySelector } from '../util';
+import { utilDisplayName, utilEntitySelector } from '../util';
 
 
 
@@ -141,7 +141,7 @@ export function svgLabels(projection, context) {
             .data(entities, osmEntity.key)
             .attr('startOffset', '50%')
             .attr('xlink:href', function(d) { return '#ideditor-labelpath-' + d.id; })
-            .text(utilDisplayNameForPath);
+            .text(utilDisplayName);
     }
 
 
@@ -344,8 +344,7 @@ export function svgLabels(projection, context) {
                 entity = labelable[k][i];
                 geometry = entity.geometry(graph);
 
-                var getName = (geometry === 'line') ? utilDisplayNameForPath : utilDisplayName;
-                var name = getName(entity);
+                var name = utilDisplayName(entity);
                 var width = name && textWidth(name, fontSize);
                 var p = null;
 

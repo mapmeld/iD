@@ -17,7 +17,6 @@ export { utilCombinedTags } from './util';
 export { utilDeepMemberSelector } from './util';
 export { utilDetect } from './detect';
 export { utilDisplayName } from './util';
-export { utilDisplayNameForPath } from './util';
 export { utilDisplayType } from './util';
 export { utilDisplayLabel } from './util';
 export { utilEntityRoot } from './util';

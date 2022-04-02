@@ -1,5 +1,4 @@
 import { remove as removeDiacritics } from 'diacritics';
-import { fixRTLTextForSvg, rtlRegex } from './svg_paths_rtl_fix';
 
 import { presetManager } from '../presets';
 import { t, localizer } from '../core/localizer';
@@ -216,19 +215,6 @@ export function utilDisplayName(entity) {
 
     if (keyComponents.length) {
         name = t('inspector.display_name.' + keyComponents.join('_'), tags);
-    }
-
-    return name;
-}
-
-
-export function utilDisplayNameForPath(entity) {
-    var name = utilDisplayName(entity);
-    var isFirefox = utilDetect().browser.toLowerCase().indexOf('firefox') > -1;
-    var isNewChromium = Number(utilDetect().version.split('.')[0]) >= 96.0;
-
-    if (!isFirefox && !isNewChromium && name && rtlRegex.test(name)) {
-        name = fixRTLTextForSvg(name);
     }
 
     return name;
